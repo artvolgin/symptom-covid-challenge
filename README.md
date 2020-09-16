@@ -7,14 +7,15 @@
 
 ## TODO:
 1. EDA of the household pulse survey data. https://www.census.gov/programs-surveys/household-pulse-survey/data.html (open from TOR)
-2. 
+2. EDA of the Oxford state response data. OxCGRT_US_states_temp.csv
+3. EDA of the COVID-19 Social Media Counts & Sentiment. COVID-19_Social_Media_Counts_and_Sentiment.csv
 
 ## NOTES:
 1. We need to account for different age cohorts and gender.
 2. The story about the shortage of tests based on the pct_tested_no_result and pct_could_not_get_tested indicators.
 3. Compare CLI-in-community with other CLI’s for states with large N to prove that they are almost perfectly correlated than we control for the sample size.
 4. A lot of outliers and very high values in “mean” variables.
-5. pct_avoid_contact_all_or_most_time as the main variable of interest that indicate how serious people view a threat from COVID-19. Changes in that variable can be caused by different factors: 1) initial reaction to pandemic, 2) number of cases in the district, 3) number of cases in the US, 4) proportion of people who already have had COVID-19 and have no worries about it now, 5) irresponsible actions/overall mistrust towards COVID-19 threat. We should focus our attention on the 5th factor and show the districts with higher proportion of people who acts this way. The government should pay more attention to these states in terms of promoting COVID-related information and fighting against fake-news about coronavirus.
+5. avoid_contact as the main variable of interest that indicate how serious people view a threat from COVID-19. Changes in that variable can be caused by different factors: 1) initial reaction to pandemic, 2) number of cases in the district, 3) number of cases in the US, 4) proportion of people who already have had COVID-19 and have no worries about it now, 5) irresponsible actions/overall mistrust towards COVID-19 threat. We should focus our attention on the 5th factor and show the districts with higher proportion of people who acts this way. The government should pay more attention to these states in terms of promoting COVID-related information and fighting against fake-news about coronavirus.
 6. Multilevel structure with states-counties. Survey data on the second level, medical statistics, safegraph and other indicators on the second level.
 7. If we are going to use safegraph data we need to remove weekly-seasonality from it.
 8. County level research: look at the differences between urban and rural counties (NCHS Urban-Rural Classification Scheme for Counties).
