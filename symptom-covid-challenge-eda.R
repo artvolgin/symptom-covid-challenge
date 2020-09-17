@@ -9,7 +9,6 @@ library(stringr)
 library(rio)
 library(gridExtra)
 library(tidyr)
-library(dplyr)
 # Time-series
 library(dtwclust)
 library(vars)
@@ -19,6 +18,7 @@ library(TSstudio)
 library(forecast)
 # Extra
 library(covidcast)
+library(dplyr)
 
 # Set the working directory
 setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
@@ -47,9 +47,10 @@ df_state_agg <- df_state %>%
             mean_n=mean(summed_n))
 df_state_agg$state_code_up <- toupper(df_state_agg$state_code)
 df_state_agg <- df_state_agg %>%
-  left_join(df_state_names %>% select(state_code_up, state_name)) %>%
-  select(-state_code_up)
-# Add name to District Columbia
+  left_join(df_state_names %>% dplyr::select(state_code_up, state_name)) %>%
+  dplyr::select(-state_code_up) %>%
+  arrange(mean_n)
+# Add name to District of Columbia
 df_state_agg[is.na(df_state_agg$state_name),]$state_name <- "District of Columbia"
 
 # ! Select only states with more than a 10,000 respondents each day
