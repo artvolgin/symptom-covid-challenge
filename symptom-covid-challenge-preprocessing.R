@@ -28,24 +28,28 @@ library(covidcast)
 setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
              "/YandexDisk/covid_facebook/data/UMD_survey_data"))
 
-# Load smoothed data by countries
+# Load data by countries
 umd_files <- list.files()
-umd_files_country_smoothed <- umd_files[grepl("country", umd_files) & grepl("smoothed", umd_files)]
+umd_files_country <- umd_files[grepl("country", umd_files) & !grepl("smoothed", umd_files)]
 
-df_country <- bind_rows(import(umd_files_country_smoothed[1]),
-                        import(umd_files_country_smoothed[2]),
-                        import(umd_files_country_smoothed[3]),
-                        import(umd_files_country_smoothed[4]),
-                        import(umd_files_country_smoothed[5]),
-                        import(umd_files_country_smoothed[6]))
+df_country <- bind_rows(import(umd_files_country[1]),
+                        import(umd_files_country[2]),
+                        import(umd_files_country[3]),
+                        import(umd_files_country[4]),
+                        import(umd_files_country[5]),
+                        import(umd_files_country[6]))
 
 # Drop unweighted columns and rename others
 keep_columns <- c("country_agg", "GID_0", "gender", "age_bucket",
-                  "date", "rolling_total_responses", "weight_sums")
+                  "date", "total_responses", "weight_sums")
 df_country <- df_country[,(colnames(df_country) %in% keep_columns) |
                            grepl("weighted", colnames(df_country))]
-colnames(df_country) <- str_remove(colnames(df_country), "smoothed_")
+df_country <- df_country[,(colnames(df_country) %in% keep_columns) |
+                           !grepl("weighted_sums", colnames(df_country))]
 colnames(df_country) <- str_remove(colnames(df_country), "_weighted")
+
+# Drop intersected groups between gender and age (for ex. 18-34 males). Samples are too small.
+df_country <- df_country %>% filter(age_bucket=="overall" | gender=="overall")
 
 # Drop countries with some no more than 50 dates missing, based on the age groups buckets
 country_date <- df_country %>%
@@ -53,8 +57,77 @@ country_date <- df_country %>%
   group_by(country_agg) %>%
   summarize(date_n=n()) %>%
   ungroup() %>%
-  filter(date_n >= max(date_n)-50)
+  filter(date_n >= max(date_n)-100)
 df_country <- df_country %>% filter(country_agg %in% country_date$country_agg)
+
+# Smooth the data
+smoothSurveyData <- function(country_name, df_country){
+  
+  list_result <- list()
+  # Select the country of interest
+  df_country_selected <- df_country %>% filter(country_agg==country_name)
+  
+  # Process the smoothing for each respective subgroup
+  i <- 1
+  
+  for(gender_i in c("female", "male")){
+      # Select specific gender and age group
+      df_country_selected_sub <- df_country_selected %>% filter(gender==gender_i)
+      # Smoothing
+      df_country_selected_sub <- df_country_selected_sub[order(df_country_selected_sub$date),]
+      df_country_selected.7 <- df_country_selected_sub[7:nrow(df_country_selected_sub),]
+      survey_columns <- colnames(df_country)[grepl("pct", colnames(df_country))]
+      for (colname in survey_columns){
+        df_country_selected.7[colname] <- as.numeric(rollmean(df_country_selected_sub[colname], 7))
+      }
+      # Save smoothed subdataset to list
+      list_result[[i]] <- df_country_selected.7
+      i <- i + 1
+    }
+    
+  for(age_bucket_i in c("18-34","35-54","55+")){
+      # Select specific gender and age group
+      df_country_selected_sub <- df_country_selected %>% filter(age_bucket==age_bucket_i)
+      # Smoothing
+      df_country_selected_sub <- df_country_selected_sub[order(df_country_selected_sub$date),]
+      df_country_selected.7 <- df_country_selected_sub[7:nrow(df_country_selected_sub),]
+      survey_columns <- colnames(df_country)[grepl("pct", colnames(df_country))]
+      for (colname in survey_columns){
+        df_country_selected.7[colname] <- as.numeric(rollmean(df_country_selected_sub[colname], 7))
+      }
+      # Save smoothed subdataset to list
+      list_result[[i]] <- df_country_selected.7
+      i <- i + 1
+  }
+  
+  # Select specific gender and age group
+  df_country_selected_sub <- df_country_selected %>% filter(age_bucket=="overall", gender=="overall")
+  # Smoothing
+  df_country_selected_sub <- df_country_selected_sub[order(df_country_selected_sub$date),]
+  df_country_selected.7 <- df_country_selected_sub[7:nrow(df_country_selected_sub),]
+  survey_columns <- colnames(df_country)[grepl("pct", colnames(df_country))]
+  for (colname in survey_columns){
+    df_country_selected.7[colname] <- as.numeric(rollmean(df_country_selected_sub[colname], 7))
+  }
+  # Save smoothed subdataset to list
+  list_result[[i]] <- df_country_selected.7
+  i <- i + 1
+  
+  df_result <- do.call(rbind, list_result)
+  return(df_result)
+  
+}
+# Obtain smoothed data for each country respectively 
+list_countries <- list()
+country_names <- unique(df_country$country_agg)
+for(j in 1:length(country_names)){
+  list_countries[[j]] <- smoothSurveyData(country_names[j], df_country)
+  print(j)
+}
+df_country <- do.call(rbind, list_countries)
+
+# Remove observations from April
+df_country <- df_country %>% filter(date >= "2020-05-01")
 
 
 # ------------ Google open data: Inforamtion about countries and COVID related statistics
