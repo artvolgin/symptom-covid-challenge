@@ -6,11 +6,6 @@
 1. VAR model estimation
 
 ## TODO:
-1. EDA of the household pulse survey data. https://www.census.gov/programs-surveys/household-pulse-survey/data.html (open from TOR)
-2. EDA of the Oxford state response data. OxCGRT_US_states_temp.csv
-3. EDA of the COVID-19 Social Media Counts & Sentiment. COVID-19_Social_Media_Counts_and_Sentiment.csv
-
-## NOTES:
 1. We need to account for different age cohorts and gender.
 2. The story about the shortage of tests based on the pct_ever_tested and pct_tested_recently.
 3. Compare CLI-in-community with other CLI’s for states with large N to prove that they are almost perfectly correlated than we control for the sample size.
@@ -22,6 +17,7 @@
 13. pct_cmnty_cli in the age-group 18-34 as a good predictor of the number of cases in the future. Young people are mostly spreading COVID => CIL for 55+ = CLI for 18-34 with a lag.
 14. Create dashboard in Shiny.
 15. How does  pct_wear_mask, pct_attended_public_event, etc. affected by the introduction of different restrictions. Main question: Does people pay attetion more to the restriction or to the number of cases when adjusting their behaviour.
+16. EDA of the Oxford state response data.
 
 
 
