@@ -10,133 +10,100 @@ library(tsDyn)
 setwd("C:/Users/1/YandexDisk/covid_facebook/data")
 
 # Load the data
-df_country <- readRDS("df_country.rds")
+df_state <- readRDS("df_state.rds") %>% filter (gender == 'overall') %>%
+  select(c(date, state_code, StringencyIndex, age_bucket, pct_cmnty_cli, cases_prop, pct_avoid_contact))
 # colnames(df_country)
 # hist(df_country$stringency_index)
 
 # Date
-df_country$date  = as.Date(df_country$date)
-table(df_country$country_agg)
+df_state$date  = as.Date(df_state$date)
+table(df_state$state_code)
 
-# Texas subset
-df_sub = df_country %>%
-  filter(country_agg == 'France' & gender == 'overall' & age_bucket == 'overall') %>%
-  arrange(date)
+# Long to wide format
+df_state_wide <- pivot_wider(df_state, id_cols = c(date, state_code, cases_prop, StringencyIndex),
+                             names_from = age_bucket,
+                             values_from = c(pct_cmnty_cli, pct_avoid_contact))
+colnames(df_state_wide)[5:ncol(df_state_wide)] <- c('pct_cmnty_cli_18', 'pct_cmnty_cli_35', 'pct_cmnty_cli_55',
+                                                    'pct_cmnty_cli_overall', 'pct_avoid_contact_18',
+                                                    'pct_avoid_contact_35', 'pct_avoid_contact_55',
+                                                    'pct_avoid_contact_overall')
+vecm_est_by_state <- c()
+for (i in unique(df_state_wide$state_code)){
+  
+  # Filtering state and arranging
+  df_sub = df_state_wide %>%
+    filter(state_code == i) %>%
+    arrange(date)
+  
+  # Lag selection
+  lagselect <- VARselect(df_sub[, c('pct_cmnty_cli_18',
+                                    'pct_cmnty_cli_55',
+                                    'pct_avoid_contact_18',
+                                    'pct_avoid_contact_55',
+                                    'StringencyIndex')], 
+                         lag.max = 10, type = 'both')
+  
+  # Johansen Test for cointegration
+  #jotest <- ca.jo(df_sub[, c('pct_cmnty_cli_18',
+  #                           'pct_cmnty_cli_55',
+  #                           'pct_avoid_contact_18',
+  #                           'pct_avoid_contact_55',
+  #                           'StringencyIndex')],
+  #                type = "eigen", K = (max(lagselect$selection) - 1), ecdet = "trend", spec = "longrun")
+  #summary(jotest)
+  
+  # Variables of interest
+  Vars <- sort(c('pct_cmnty_cli_18',
+                 'pct_cmnty_cli_55',
+                 'pct_avoid_contact_18',
+                 'pct_avoid_contact_55',
+                 'StringencyIndex'))
+  
+  ###### VECM Modeling
+  vecm <- VECM(df_sub[, Vars],
+               lag = (max(lagselect$selection) - 1),
+               estim = "ML", r = 1, include = 'both')
+  coefMat.short <- summary(vecm)$coefMat[, c('Estimate', 'Pr(>|t|)')]
+  
+  # Extracting short-run coefficients
+  names.short <- expand.grid(Vars, c('pct_cmnty_cli_18-1',
+                                     'pct_cmnty_cli_55-1',
+                                     'pct_avoid_contact_18-1',
+                                     'pct_avoid_contact_55-1',
+                                     'StringencyIndex-1'))
+  names.short.selected <- sort(paste0(names.short$Var1, ':', names.short$Var2))
+  coefMat.short.selected <- as.data.frame(coefMat[names.short.selected, ])
+  colnames(coefMat.short.selected) <- c('est_short', 'p_short')
+  coefMat.short.selected$names <- substr(rownames(coefMat.short.selected), 1,
+                                         nchar(rownames(coefMat.short.selected))-2)
+  rownames(coefMat.short.selected) <- NULL
+  
+  # Extracting long-run coefficients
+  names.ect <- expand.grid(Vars, 'ECT')
+  names.ect.selected <- sort(paste0(names.ect$Var1, ':', names.ect$Var2))
+  coefMat.long <- coefMat[names.ect.selected,]
+  
+  # Multiplying estimated kappas by gammas
+  est_long <- c(outer(coefMat.long[, 'Estimate'], vecm$model.specific$coint))
+  names.long <- expand.grid(Vars, Vars)
+  coefMat.long.fin <- cbind.data.frame('names' = paste0(names.long$Var1, ':',
+                                                        names.long$Var2),
+                                       est_long, 'p_long' = rep(coefMat.long[,2],
+                                                                times = length(Vars)))
+  coefMat.long.fin$names <- as.character(coefMat.long.fin$names)
+  
+  # Combining long- and short-run estimates
+  vecm_est <- coefMat.short.selected %>%
+    left_join(coefMat.long.fin, by = 'names')
+  vecm_est <- vecm_est[, c(3,1,2,4,5)]
+  vecm_est_by_state <- rbind.data.frame(vecm_est_by_state, vecm_est)
+}
 
-# Mask wearing variable
-df_sub$pct_wear_mask_all_most <- rowSums(df_sub[, c("pct_wear_mask_all_time",
-                                              "pct_wear_mask_most_time")], na.rm = T)
+# Adding state id
+vecm_est_by_state <- cbind.data.frame(state_code = rep(unique(df_state_wide$state_code),
+                                                       each = nrow(vecm_est)), vecm_est_by_state)
+# Rounding
+vecm_est_by_state[,-(1:2)] <- round(vecm_est_by_state[,-(1:2)], 3)
 
-# Filtering first 60 days
-# Trend
-df_sub <- df_sub %>% mutate(day = 1:n()) %>% filter(day > 10)
+saveRDS(vecm_est_by_state, 'vecm_est_by_state.rds')
 
-# Time series format
-df_sub$new_confirmed = ts(df_sub$new_confirmed)
-df_sub$pct_wear_mask_all_most = ts(df_sub$pct_wear_mask_all_most)
-
-# Viewing
-plot(df_sub$new_confirmed)
-plot(df_sub$pct_wear_mask_all_most)
-
-# Dickey-Fuller test for unit root 
-summary(ur.df(df_sub$new_confirmed, type="none"))
-summary(ur.df(df_sub$pct_wear_mask_all_most, type="none"))
-# we have a unit root problem
-
-# Detrending
-df_sub$detrend_new_confirmed <- residuals(lm(new_confirmed ~ day + day^2, data = df_sub))
-df_sub$detrend_pct_wear_mask_all_most <- residuals(lm(pct_wear_mask_all_most ~ day + day^2, data = df_sub))
-
-# Time series format
-df_sub$detrend_new_confirmed = ts(df_sub$detrend_new_confirmed)
-df_sub$detrend_pct_wear_mask_all_most = ts(df_sub$detrend_pct_wear_mask_all_most)
-
-# Viewing
-plot(df_sub$detrend_new_confirmed)
-plot(df_sub$detrend_pct_wear_mask_all_most)
-
-# Unit root test
-summary(ur.df(df_sub$detrend_new_confirmed, type="none"))
-summary(ur.df(df_sub$detrend_pct_wear_mask_all_most, type="none"))
-# the data seem non-stationary
-
-df_sub <- df_sub[which(is.na(df_sub$stringency_index) == F),]
-
-# Lag selection
-lagselect <- VARselect(df_sub[, c('pct_cmnty_sick', 'pct_wear_mask_all_most')], 
-                       lag.max = 20, type = 'both')
-lagselect$selection
-
-# Johansen Test
-#jotest <- ca.jo(df_sub[, c('detrend_new_confirmed', 'detrend_pct_wear_mask_all_most')],
-#             type = "eigen", K = 18, ecdet = "const", spec = "longrun")
-#summary(jotest)
-# Our variables are cointegrating
-
-###### VECM Modeling
-#vecm <- VECM(df_sub[, c('detrend_new_confirmed', 'detrend_pct_wear_mask_all_most')],
-#             lag = 4, estim = "2OLS", include = 'const')
-#vecm <- cajorls(jotest)
-#vecm
-#confint(vecm$rlm)
-# Transform VEC to VAR with r = 1
-#var <- vec2var(jotest, r = 1)
-
-
-# VAR
-Model1 <- VAR(df_sub[, c('pct_cmnty_sick', 'pct_wear_mask_all_most')],
-                 p = 8, type = "trend", exogen = df_sub[,'stringency_index']) 
-summary(Model1)
-
-# Diagnostics
-Serial1 <- serial.test(Model1)
-Serial1
-#plot(Serial1, names = "detrend_pct_wear_mask_all_most")
-Arch1 <- arch.test(Model1, lags.multi = 15, multivariate.only = TRUE)
-Arch1
-Norm1 <- normality.test(Model1, multivariate.only = TRUE)
-Norm1
-Stability1 <- stability(Model1)
-plot(Stability1)
-
-# Granger causality
-GrangerRRP<- causality(Model1, cause = "new_confirmed")
-GrangerRRP
-GrangerM1 <- causality(Model1, cause = "pct_wear_mask_all_most")
-GrangerM1
-
-# Impulse Response
-
-irf1 <- irf(Model1, impulse = "new_confirmed",
-              response = "pct_wear_mask_all_most", n.ahead = 20, boot = TRUE)
-plot(irf1)
-
-irf2 <- irf(Model1, impulse = "pct_wear_mask_all_most",
-            response = "new_confirmed", n.ahead = 20, boot = TRUE)
-plot(irf2)
-
-irf3 <- irf(Model1, impulse = "pct_wear_mask_all_most",
-            response = "pct_wear_mask_all_most", n.ahead = 20, boot = TRUE)
-plot(irf3)
-
-irf4 <- irf(Model1, impulse = "new_confirmed",
-            response = "new_confirmed", n.ahead = 20, boot = TRUE)
-plot(irf4)
-
-# Cum
-irf1c <- irf(Model1, impulse = "new_confirmed",
-            response = "pct_wear_mask_all_most", n.ahead = 20, boot = TRUE, cumulative = T)
-plot(irf1c)
-
-irf2c <- irf(Model1, impulse = "pct_wear_mask_all_most",
-            response = "new_confirmed", n.ahead = 20, boot = TRUE, cumulative = T)
-plot(irf2c)
-
-irf3c <- irf(Model1, impulse = "pct_wear_mask_all_most",
-            response = "pct_wear_mask_all_most", n.ahead = 20, boot = TRUE, cumulative = T)
-plot(irf3c)
-
-irf4c <- irf(Model1, impulse = "new_confirmed",
-            response = "new_confirmed", n.ahead = 20, boot = TRUE, cumulative = T)
-plot(irf4c)
