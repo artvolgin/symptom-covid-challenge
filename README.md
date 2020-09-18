@@ -18,6 +18,7 @@
 14. Create dashboard in Shiny.
 15. How does  pct_wear_mask, pct_attended_public_event, etc. affected by the introduction of different restrictions. Main question: Does people pay attetion more to the restriction or to the number of cases when adjusting their behaviour.
 16. EDA of the Oxford state response data.
+17. Smoothing on top of the provided smoothing
 
 
 
