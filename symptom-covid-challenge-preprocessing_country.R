@@ -139,6 +139,28 @@ df_google <- import("main.csv")
 # Select only state-level data
 df_google <- df_google %>% filter(subregion1_code=="", key!="UA_KBP")
 
+# Smooth the COVID statitics
+list_google <- list()
+i <- 1
+for (country_key in unique(df_google$key)){
+  
+# Select the country of interest
+df_google_selected <- df_google %>% filter(key==country_key)
+# Smoothing
+df_google_selected <- df_google_selected[order(df_google_selected$date),]
+df_google_selected.7 <- df_google_selected[7:nrow(df_google_selected),]
+covid_columns <- c("new_confirmed", "new_deceased", "new_recovered", "new_tested", "total_confirmed",
+                   "total_deceased", "total_recovered", "total_tested")
+for (colname in covid_columns){
+  df_google_selected.7[colname] <- as.numeric(rollmean(df_google_selected[colname], 7))
+}
+# Save smoothed subdataset to list
+list_google[[i]] <- df_google_selected.7
+i <- i + 1
+
+}
+df_google <- do.call(rbind, list_google)
+
 # Merge datasets
 df_country <- df_country %>% left_join(df_google, by=c("GID_0"="3166-1-alpha-3", "date"="date"))
 
