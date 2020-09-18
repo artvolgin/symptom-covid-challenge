@@ -34,7 +34,7 @@ for (i in unique(df_state_wide$state_code)){
   df_sub = df_state_wide %>%
     filter(state_code == i) %>%
     arrange(date)
-  
+
   # Lag selection
   lagselect <- VARselect(df_sub[, c('pct_cmnty_cli_18',
                                     'pct_cmnty_cli_55',
@@ -72,7 +72,7 @@ for (i in unique(df_state_wide$state_code)){
                                      'pct_avoid_contact_55-1',
                                      'StringencyIndex-1'))
   names.short.selected <- sort(paste0(names.short$Var1, ':', names.short$Var2))
-  coefMat.short.selected <- as.data.frame(coefMat[names.short.selected, ])
+  coefMat.short.selected <- as.data.frame(coefMat.short[names.short.selected, ])
   colnames(coefMat.short.selected) <- c('est_short', 'p_short')
   coefMat.short.selected$names <- substr(rownames(coefMat.short.selected), 1,
                                          nchar(rownames(coefMat.short.selected))-2)
@@ -81,7 +81,7 @@ for (i in unique(df_state_wide$state_code)){
   # Extracting long-run coefficients
   names.ect <- expand.grid(Vars, 'ECT')
   names.ect.selected <- sort(paste0(names.ect$Var1, ':', names.ect$Var2))
-  coefMat.long <- coefMat[names.ect.selected,]
+  coefMat.long <- coefMat.short[names.ect.selected,]
   
   # Multiplying estimated kappas by gammas
   est_long <- c(outer(coefMat.long[, 'Estimate'], vecm$model.specific$coint))
@@ -106,4 +106,7 @@ vecm_est_by_state <- cbind.data.frame(state_code = rep(unique(df_state_wide$stat
 vecm_est_by_state[,-(1:2)] <- round(vecm_est_by_state[,-(1:2)], 3)
 
 saveRDS(vecm_est_by_state, 'vecm_est_by_state.rds')
+
+
+vecm_est_by_state %>% filter(names == 'pct_avoid_contact_18:pct_cmnty_cli_18')
 
