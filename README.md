@@ -26,5 +26,6 @@
 13. pct_cmnty_cli in the age-group 18-34 as a good predictor of the number of cases in the future. Young people are mostly spreading COVID => CIL for 55+ = CLI for 18-34 with a lag.
 14. Create dashboard in Shiny.
 15. How does avoid_contact affected by the introduction of different restrictions. Main question: Does people pay attetion more to the restriction or to the number of cases when adjusting their behaviour.
+16. Utilize the method for three examples: 1) County-level in Florida/California, 2) State-level for US, 3) Region-level for Western Europe
 
 
