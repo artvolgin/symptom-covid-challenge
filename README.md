@@ -2,8 +2,8 @@
 
 ## TODO:
 1. mlVAR model. Compare the effect of StringencyIndex in different states and in the US in general. Also check the efficiency of separate policies.
-2. mlVAR model. Look at age related relationships. pct_cmnty_cli_18-34 caueses increase in pct_cmnty_cli_55 and pct_avoid_contact_55 and other examples like this.
-3. mlVAR model. Look at the situation in Western Europe countries and corresponding subregions. Look at the available variables in the df_country.
+2. mlVAR model. Look at age related relationships. pct_cmnty_cli_18-34 causes increase in pct_cmnty_cli_55 and pct_avoid_contact_55 and other examples like this.
+3. mlVAR model. Coefficent of pct_cmnty_cli --> pct_avoid_contact as measure of how people react to increase in covid cases. Coefficent of pct_avoid_contact --> pct_cmnty_cli as how their behaivour decrease new cases. Coefficent of pct_cmnty_cli --> restrictions as measure how government react to increase in covid cases. Coefficent of restrictions --> pct_cmnty_cli as how efficient were these measures.
 
 6. mlVAR model. Take counties as the lower level of observations. If we don't have enough sample to obtain survey indicators for specific county i in time t than take the indicators of the "rest of state X" in the time t as the proxy for these indicators.
 
