@@ -5,7 +5,7 @@
 2. mlVAR model. Look at age related relationships. pct_cmnty_cli_18-34 causes increase in pct_cmnty_cli_55 and pct_avoid_contact_55 and other examples like this.
 3. mlVAR model. Coefficent of pct_cmnty_cli --> pct_avoid_contact as measure of how people react to increase in covid cases. Coefficent of pct_avoid_contact --> pct_cmnty_cli as how their behaivour decrease new cases. Coefficent of pct_cmnty_cli --> restrictions as measure how government react to increase in covid cases. Coefficent of restrictions --> pct_cmnty_cli as how efficient were these measures.
 4.  mlVAR model. Plot the coefficents --> pct_cmnty_cli on the map or as the heatmap.
-5. Introduce medical statistics in some way? Add them in model estimation or compare obtained coefficients with deaths/new cases per population at the end to justify the result?
+5. Introduce medical statistics in some way? Add them in model estimation or compare obtained coefficients with deaths/new cases per population at the end to justify the result? Scatter plot with x=coef of avoid_contact from(to) cli, y = coef of stringency_index from(to) cli, size of the dot=total number of cases per population
 
 ## DONE:
 1. EDA of the Oxford state response data. OxCGRT_US_states_temp.csv
