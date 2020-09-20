@@ -4,13 +4,13 @@
 1. mlVAR model. Compare the effect of StringencyIndex in different states and in the US in general. Also check the efficiency of separate policies.
 2. mlVAR model. Look at age related relationships. pct_cmnty_cli_18-34 caueses increase in pct_cmnty_cli_55 and pct_avoid_contact_55 and other examples like this.
 3. mlVAR model. Look at the situation in Western Europe countries and corresponding subregions. Look at the available variables in the df_country.
-4. mlVAR model. Story about the shortage of tests based on the pct_tested_no_result and pct_could_not_get_tested indicators and how this affects other indicators like pct_cmnty_cli.
-5. mlVAR model. Add time-ivariant exogenous variables into the model (gdp, population density, health-related indicators etc.).
+
 6. mlVAR model. Take counties as the lower level of observations. If we don't have enough sample to obtain survey indicators for specific county i in time t than take the indicators of the "rest of state X" in the time t as the proxy for these indicators.
 
 ## DONE:
 1. EDA of the Oxford state response data. OxCGRT_US_states_temp.csv
 2. VAR model estimation
+5. mlVAR model. Add time-ivariant exogenous variables into the model (gdp, population density, health-related indicators etc.). DOES NOT WORK THIS WAY
 
 ## IDEAS:
 1. EDA of the household pulse survey data. https://www.census.gov/programs-surveys/household-pulse-survey/data.html (open from TOR)
