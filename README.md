@@ -1,20 +1,21 @@
 # The COVID-19 Symptom Data Challenge
-Current agenda: avoid_contact as the main variable of interest that indicate how serious people view a threat from COVID-19. Changes in that variable can be caused by different factors: 1) initial reaction to pandemic, 2) number of cases in the district, 3) number of cases in the US, 4) proportion of people who already have had COVID-19 and have no worries about it now, 5) irresponsible actions/overall mistrust towards COVID-19 threat. We should focus our attention on the 5th factor and show the districts with higher proportion of people who acts this way. The government should pay more attention to these states in terms of promoting COVID-related information and fighting against fake-news about coronavirus.
-
-## IN PROGRESS:
-1. Tune the VEC model for US states
 
 ## TODO:
-1. EDA of the household pulse survey data. https://www.census.gov/programs-surveys/household-pulse-survey/data.html (open from TOR)
-2. EDA of the COVID-19 Social Media Counts & Sentiment. COVID-19_Social_Media_Counts_and_Sentiment.csv
+1. mlVAR model. Compare the effect of StringencyIndex in different states and in the US in general. Also check the efficiency of separate policies.
+2. mlVAR model. Look at age related relationships. pct_cmnty_cli_18-34 caueses increase in pct_cmnty_cli_55 and pct_avoid_contact_55 and other examples like this.
+3. mlVAR model. Look at the situation in Western Europe countries and corresponding subregions. Look at the available variables in the df_country.
+4. mlVAR model. Story about the shortage of tests based on the pct_tested_no_result and pct_could_not_get_tested indicators and how this affects other indicators like pct_cmnty_cli.
+5. mlVAR model. Add time-ivariant exogenous variables into the model (gdp, population density, health-related indicators etc.).
+6. mlVAR model. Take counties as the lower level of observations. If we don't have enough sample to obtain survey indicators for specific county i in time t than take the indicators of the "rest of state X" in the time t as the proxy for these indicators.
 
 ## DONE:
 1. EDA of the Oxford state response data. OxCGRT_US_states_temp.csv
 2. VAR model estimation
 
-## NOTES:
+## IDEAS:
+1. EDA of the household pulse survey data. https://www.census.gov/programs-surveys/household-pulse-survey/data.html (open from TOR)
+2. EDA of the COVID-19 Social Media Counts & Sentiment. COVID-19_Social_Media_Counts_and_Sentiment.csv
 1. We need to account for different age cohorts and gender.
-2. The story about the shortage of tests based on the pct_tested_no_result and pct_could_not_get_tested indicators.
 3. Compare CLI-in-community with other CLI’s for states with large N to prove that they are almost perfectly correlated than we control for the sample size.
 4. A lot of outliers and very high values in “mean” variables.
 5. Multilevel structure with states-counties. Survey data on the second level, medical statistics, safegraph and other indicators on the second level.
@@ -29,5 +30,7 @@ Current agenda: avoid_contact as the main variable of interest that indicate how
 14. How does avoid_contact affected by the introduction of different restrictions. Main question: Does people pay attetion more to the restriction or to the number of cases when adjusting their behaviour.
 15. Show the usage of the method for three places: 1) County-level in Florida/California, 2) State-level for US, 3) Region-level for Western Europe (oxford data only for regions in the UK)
 16. Switch from days to weeks as time intervals?
+17. avoid_contact as the main variable of interest that indicate how serious people view a threat from COVID-19. Changes in that variable can be caused by different factors: 1) initial reaction to pandemic, 2) number of cases in the district, 3) number of cases in the US, 4) proportion of people who already have had COVID-19 and have no worries about it now, 5) irresponsible actions/overall mistrust towards COVID-19 threat. We should focus our attention on the 5th factor and show the districts with higher proportion of people who acts this way. The government should pay more attention to these states in terms of promoting COVID-related information and fighting against fake-news about coronavirus.
+
 
 
