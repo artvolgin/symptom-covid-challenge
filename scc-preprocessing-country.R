@@ -31,7 +31,6 @@ setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
 # Load data by countries
 umd_files <- list.files()
 umd_files_country <- umd_files[grepl("country", umd_files) & !grepl("smoothed", umd_files)]
-
 df_country <- bind_rows(import(umd_files_country[1]),
                         import(umd_files_country[2]),
                         import(umd_files_country[3]),
