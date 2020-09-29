@@ -1,7 +1,7 @@
 ## The Interplay between Policy Interventions and Voluntary Actions for Battling COVID-19.
 ### Multilevel Vector Autoregression Modeling Using the CMU Survey Data.
 
-The analytical approach for The COVID-19 Symptom Data Challenge.\
+The analytical approach for the COVID-19 Symptom Data Challenge.\
 Prepared by Ekaterina Melianova and Artem Volgin.
 
 ## R Scripts
