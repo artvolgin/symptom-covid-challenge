@@ -11,7 +11,7 @@ setwd("C:/Users/1/YandexDisk/covid_facebook/data")
 
 # Load the data
 df_state <- readRDS("df_state.rds") %>% filter (gender == 'overall') %>%
-  select(c(date, state_code, StringencyIndex, age_bucket, pct_cmnty_cli, cases_prop, pct_avoid_contact))
+  dplyr::select(c(date, state_code, StringencyIndex, age_bucket, pct_cmnty_cli, cases_prop, pct_avoid_contact))
 # colnames(df_country)
 # hist(df_country$stringency_index)
 
@@ -37,11 +37,12 @@ for (i in unique(df_state_wide$state_code)){
 
   # Lag selection
   lagselect <- VARselect(df_sub[, c('pct_cmnty_cli_18',
-                                    'pct_cmnty_cli_55',
-                                    'pct_avoid_contact_18',
-                                    'pct_avoid_contact_55',
-                                    'StringencyIndex')], 
-                         lag.max = 10, type = 'both')
+                                    'pct_cmnty_cli_55'
+                                    # 'pct_avoid_contact_18',
+                                    # 'pct_avoid_contact_55',
+                                    # 'StringencyIndex'
+                                    )], 
+                         lag.max = 14, type = 'both')
   
   # Johansen Test for cointegration
   #jotest <- ca.jo(df_sub[, c('pct_cmnty_cli_18',
@@ -54,10 +55,11 @@ for (i in unique(df_state_wide$state_code)){
   
   # Variables of interest
   Vars <- sort(c('pct_cmnty_cli_18',
-                 'pct_cmnty_cli_55',
-                 'pct_avoid_contact_18',
-                 'pct_avoid_contact_55',
-                 'StringencyIndex'))
+                 'pct_cmnty_cli_55'
+                 # 'pct_avoid_contact_18',
+                 # 'pct_avoid_contact_55',
+                 # 'StringencyIndex'
+                 ))
   
   ###### VECM Modeling
   vecm <- VECM(df_sub[, Vars],
@@ -67,10 +69,11 @@ for (i in unique(df_state_wide$state_code)){
   
   # Extracting short-run coefficients
   names.short <- expand.grid(Vars, c('pct_cmnty_cli_18-1',
-                                     'pct_cmnty_cli_55-1',
-                                     'pct_avoid_contact_18-1',
-                                     'pct_avoid_contact_55-1',
-                                     'StringencyIndex-1'))
+                                     'pct_cmnty_cli_55-1'
+                                     # 'pct_avoid_contact_18-1',
+                                     # 'pct_avoid_contact_55-1',
+                                     # 'StringencyIndex-1'
+                                     ))
   names.short.selected <- sort(paste0(names.short$Var1, ':', names.short$Var2))
   coefMat.short.selected <- as.data.frame(coefMat.short[names.short.selected, ])
   colnames(coefMat.short.selected) <- c('est_short', 'p_short')
@@ -108,5 +111,27 @@ vecm_est_by_state[,-(1:2)] <- round(vecm_est_by_state[,-(1:2)], 3)
 saveRDS(vecm_est_by_state, 'vecm_est_by_state.rds')
 
 
-vecm_est_by_state %>% filter(names == 'pct_avoid_contact_18:pct_cmnty_cli_18')
+###################### PLOT THE RESULTS
+
+# Function for plotting coefficents on the map
+plot.coef.map <- function(selected_vars, vecm_est_by_state=vecm_est_by_state){
+  
+  selected_coefs <- vecm_est_by_state %>%
+    filter(names==selected_vars)
+  
+  plot_usmap(data = selected_coefs, values = "est_long",
+             color = "white", labels = T, label_color = "black") + 
+    scale_fill_continuous(type = "viridis", name = "coef", label = scales::comma) + 
+    theme(legend.position = "right",
+          plot.title = element_text(hjust=0.5, size=18),
+          plot.subtitle = element_text(hjust=0.5, size=14)) + 
+    labs(title = paste0(selected_vars), subtitle = "")
+  
+}
+
+vecm_est_by_state$state <- vecm_est_by_state$state_code
+vecm_est_by_state[(vecm_est_by_state$p_long > 0.1),]$est_long <- NA
+
+plot.coef.map("pct_cmnty_cli_55:pct_cmnty_cli_18", vecm_est_by_state)
+
 

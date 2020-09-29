@@ -26,6 +26,11 @@ library(forecast)
 # Extra
 library(covidcast)
 
+minmax_normalize <- function(x)
+{
+  return((x- min(x)) /(max(x)-min(x)))
+}
+
 # Set the working directory
 setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
              "/YandexDisk/covid_facebook/data"))
@@ -33,7 +38,62 @@ setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
 # Load the data
 df_state <- readRDS("df_state.rds")
 
+# ------------ 0. Plots for presentation
 
+plot.eda.ts <- function(df, st_code=F){
+  
+  if (st_code==F){
+    
+    df <- df %>%
+      filter(gender=="overall", age_bucket=="overall") %>%
+      dplyr::select(date, pct_cmnty_cli, pct_tested_no_result, pct_worked_outside_home,
+                    pct_avoid_contact, StringencyIndex) %>%
+      group_by(date) %>%
+      summarise_all(mean) %>% 
+      mutate(pct_cmnty_cli=minmax_normalize(pct_cmnty_cli),
+             pct_avoid_contact=minmax_normalize(pct_avoid_contact),
+             pct_tested_no_result=minmax_normalize(pct_tested_no_result),
+             pct_worked_outside_home=minmax_normalize(pct_worked_outside_home),
+             StringencyIndex=minmax_normalize(StringencyIndex))
+    
+  } else {
+    
+    df <- df %>% filter(state_code==st_code) %>% 
+      filter(gender=="overall", age_bucket=="overall") %>%
+      dplyr::select(date, pct_cmnty_cli, pct_tested_no_result, pct_worked_outside_home,
+                    pct_avoid_contact, StringencyIndex) %>% 
+      mutate(pct_cmnty_cli=minmax_normalize(pct_cmnty_cli),
+             pct_avoid_contact=minmax_normalize(pct_avoid_contact),
+             pct_tested_no_result=minmax_normalize(pct_tested_no_result),
+             pct_worked_outside_home=minmax_normalize(pct_worked_outside_home),
+             StringencyIndex=minmax_normalize(StringencyIndex))
+  }
+  
+  df <- gather(df, group, value, -date)
+  
+  ggplot(df, aes(x = date, y = value)) + 
+    geom_line(aes(color = group, linetype = group), size = 1.5) +
+    scale_color_manual(values = c("coral2",
+                                  "gray40",
+                                  adjustcolor("cadetblue3", 0.5),
+                                  adjustcolor("plum2", 0.5),
+                                  "dodgerblue2")) +
+    scale_linetype_manual(values=c("solid", "dashed", "solid", "solid", "solid")) +
+    theme_classic() + 
+    labs(x = "Date",
+         y = "Normalized Value") + 
+    theme(legend.position = "none",
+          axis.title=element_text(size=18,face="bold"),
+          axis.text=element_text(size=12))
+  
+}
+
+plot.eda.ts(df_state, 'tx')
+plot.eda.ts(df_state, 'fl')
+plot.eda.ts(df_state, 'ny')
+
+  
+  
 # ------------ 1. Preprocessing for EDA
 
 # Create dataset with state code and name
@@ -115,12 +175,14 @@ plot.state.ts <- function(state_name, agg_by_age=TRUE, variables_to_plot, ncol_p
   }
 }
 
-
-variables_to_plot <- c("cases_prop", "StringencyIndex", "pct_cmnty_cli", "pct_avoid_contact")
+variables_to_plot <- c("StringencyIndex", "pct_cmnty_cli", "pct_avoid_contact")
 for(st_name in unique(df_state_agg$state_name)){
-  plot.state.ts(st_name, variables_to_plot, agg_by_age=T, 1, df_state)
+  plot.state.ts(st_name, variables_to_plot, agg_by_age=F, 1, df_state)
 }
 
+del_states <- c("Rhode Island", "New York", "New Jersey", "New Hampshire", "Pennsylvania", "Massachusetts",
+  "Delaware", "District of Columbia", "Connecticut")
+df_state_agg[df_state_agg$state_name %in% del_states,]$state_code
 
 
 # ------------ 3. Spatial Plots

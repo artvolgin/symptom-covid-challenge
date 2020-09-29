@@ -286,6 +286,9 @@ for(j in 1:length(state_codes)){
 df_state <- do.call(rbind, list_states)
 
 
+
+
+
 # ------------ Save the data
 
 # Set the working directory

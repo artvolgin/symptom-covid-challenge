@@ -41,7 +41,7 @@ colnames(df_country) <- str_replace_all(colnames(df_country), " ", "_")
 df_country_agg <- df_country %>%
   group_by(country_agg) %>%
   summarize(mean_total_responses=mean(total_responses)) %>%
-  filter(mean_total_responses>3000)
+  filter(mean_total_responses>1000)
 df_country <- df_country %>% filter(country_agg %in% df_country_agg$country_agg)
 
 ### Transform to wide format
@@ -103,15 +103,58 @@ df_country_wide <- df_country_wide %>% arrange(country_agg, date)
 
 ### -------------------------- MODELLING
 
+df_uk <- df_country_wide %>% filter(country_agg=="France")
+
+# VAR
+Model1 <- VAR(df_uk[, c('pct_wear_mask_18_34', 'pct_cmnty_sick_18_34',
+                     'pct_feel_worried_ill_covid19_18_34', 'pct_ever_tested_18_34',
+                     'pct_feel_depressed_18_34')],
+              p = 7) 
+summary(Model1)
+df_uk$
+
+# Diagnostics
+Serial1 <- serial.test(Model1, lags.pt = 7, type = "PT.asymptotic")
+Serial1
+Arch1 <- arch.test(Model1, lags.multi = 15, multivariate.only = TRUE)
+Arch1
+Norm1 <- normality.test(Model1, multivariate.only = TRUE)
+Norm1
+Stability1 <- stability(Model1, type = "OLS-CUSUM")
+plot(Stability1)
+
+# Granger causality
+GrangerRRP<- causality(Model1, cause = "detrend_cases_prop")
+GrangerRRP
+GrangerM1 <- causality(Model1, cause = "detrend_pct_avoid_contact")
+GrangerM1
+
+# Impulse Response
+
+irf1 <- vars::irf(Model1,
+            impulse = "pct_ever_tested_18_34",
+            response = "pct_wear_mask_18_34", n.ahead = 20, boot = TRUE)
+plot(irf1, ylab = "pct_wear_mask_18_34")
+
+irf2 <- vars::irf(Model1, impulse = "pct_ever_tested_18_34",
+            response = "pct_feel_worried_ill_covid19_18_34", n.ahead = 20, boot = TRUE)
+plot(irf2, ylab = "pct_feel_worried_ill_covid19_18_34")
+
+irf3 <- vars::irf(Model1, impulse = "pct_cmnty_sick_18_34",
+                  response = "pct_feel_depressed_18_34", n.ahead = 20, boot = TRUE)
+plot(irf3, ylab = "pct_feel_depressed_18_34")
+
+
+
 ### --- MODEL 1. 
-variables.1 <- c("pct_cmnty_sick_18_34", "pct_wear_mask_18_34", "pct_feel_worried_ill_covid19_18_34",
-                 "stringency_index")
+variables.1 <- c("pct_cmnty_sick_18_34", "pct_wear_mask_18_34",
+                 "pct_feel_worried_ill_covid19_18_34", "pct_ever_tested_18_34",
+                 "pct_attended_public_event_18_34")
 mlvar.1 <- mlVAR(df_country_wide,
                 vars = variables.1,
                 idvar = "country_agg", lags = 14,
                 temporal = "correlated", nCores = 12)
 plot(mlvar.1, vsize=12, label.cex=3, label.scale.equal=T, type="temporal", layout="circle")
-
 
 
 
