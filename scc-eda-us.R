@@ -73,7 +73,8 @@ plot.eda.ts <- function(df, st_code=F){
     scale_linetype_manual(values=c("solid", "dashed", "solid", "solid", "solid")) +
     theme_classic() + 
     labs(x = "Date",
-         y = "Normalized Value") + 
+         y = "Normalized Value",
+         title = st_code) + # <<< Remove later
     theme(legend.position = "none",
           axis.title=element_text(size=18,face="bold"),
           axis.text=element_text(size=12))
@@ -89,4 +90,16 @@ plot.eda.ts(df_state, 'fl')
 # Plot for New York
 plot.eda.ts(df_state, 'ny')
 
+# Plots for all the states
+for (st_cd in unique(df_state$state_code)){
   
+  plot(plot.eda.ts(df_state, st_cd))
+  print(st_cd)
+  
+}
+
+
+
+
+
+
