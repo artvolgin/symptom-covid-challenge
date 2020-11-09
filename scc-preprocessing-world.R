@@ -206,7 +206,7 @@ df_country <- df_country %>% dplyr::select(-c(wikidata, datacommons, subregion1_
 keep_countries <- (df_country %>%
   group_by(country_agg) %>%
   summarise(total_cases=max(total_confirmed, na.rm=T)) %>%
-  filter(total_cases>=10000) %>%
+  filter(total_cases>=10000) %>% 
   dplyr::select(country_agg))$country_agg
 df_country <- df_country %>% filter(country_agg %in% keep_countries)
 
@@ -222,83 +222,81 @@ df_country <- df_country %>%
 
 # ------------ Finding the peaks <<< IN PROGRESS
 
-library(pracma)
-
-# Print number of cases for each country
-
-for (name in unique(df_country$country_agg)){
-  df_sample <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg==name)
-  plot(df_sample$new_confirmed_prop, type="l", main=name)
-  print(name)
-  print(min(df_sample$new_confirmed_prop))
-}
-
-# Venezuela
-df_venezuela <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg=="Venezuela")
-plot(df_venezuela$new_confirmed_prop, type="l", main="Venezuela")
-findpeaks(df_venezuela$new_confirmed_prop, nups=7, ndowns=0, threshold=0.00001)
-
-# UK
-df_uk <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg=="United Kingdom")
-plot(df_uk$new_confirmed_prop, type="l", main="United Kingdom")
-findpeaks(df_uk$new_confirmed_prop, nups=7, ndowns = 0)
-findpeaks(df_uk$new_confirmed_prop, nups=0, ndowns = 7)
-
-# Sweden
-df_sweden <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg=="Sweden")
-plot(df_sweden$new_confirmed_prop, type="l", main="Sweden")
-findpeaks(df_sweden$new_confirmed_prop, nups=7, ndowns = 0)
-findpeaks(df_sweden$new_confirmed_prop, nups=0, ndowns = 7)
-
-# South Korea
-df_korea <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg=="South Korea")
-plot(df_korea$new_confirmed_prop, type="l", main="South Korea")
-
-findpeaks(df_sample$new_confirmed_prop, nups=, ndowns=10)
-
-
-# ------------ Time-series Clustering <<< IN PROGRESS
-
-# Prepare the data for the dtwclust
-tslist_countries <- df_country %>%
-  filter(gender=="overall", age_bucket=="overall") %>%
-  dplyr::select(date, country_agg, new_confirmed_prop) %>%
-  pivot_wider(., names_from=country_agg, values_from=new_confirmed_prop) %>%
-  arrange(date) %>%
-  dplyr::select(-date) %>%
-  as.list()
-
-# Different parameters to try
-k <- 4
-method <- c("ward.D2", "average", "single", 
-            "complete", "median", "mcquitty")
-
-# Create clustering solution with all select parameters
-hc_par <- tsclust(
-  tslist_countries,
-  k = k,
-  type = "hierarchical",
-  distance = "dtw",
-  seed = 42,
-  control = hierarchical_control(method = method),
-  args = tsclust_args(dist = list(window.size = 14)),
-  trace = TRUE)
-
-# Find the best one in terms of Silhouette, Dunn, Calinski–Harabasz
-lapply(hc_par, cvi, type = c("Sil", "D", "CH")) %>% 
-  do.call(rbind, .) %>%
-  apply(., MARGIN = 2, FUN = which.max)
-
-# Look at the select solutions
-plot(hc_par[[1]], type = "series")
-plot(hc_par[[3]], type = "series")
-plot(hc_par[[6]], type = "series")
-
-# First one seems more appropriate to use
-plot(hc_par[[6]])
-hc_par[[6]]
-
-
+# library(pracma)
+# 
+# # Print number of cases for each country
+# 
+# for (name in unique(df_country$country_agg)){
+#   df_sample <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg==name)
+#   plot(df_sample$new_confirmed_prop, type="l", main=name)
+#   print(name)
+#   print(min(df_sample$new_confirmed_prop))
+# }
+# 
+# # Venezuela
+# df_venezuela <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg=="Venezuela")
+# plot(df_venezuela$new_confirmed_prop, type="l", main="Venezuela")
+# findpeaks(df_venezuela$new_confirmed_prop, nups=7, ndowns=0, threshold=0.00001)
+# 
+# # UK
+# df_uk <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg=="United Kingdom")
+# plot(df_uk$new_confirmed_prop, type="l", main="United Kingdom")
+# findpeaks(df_uk$new_confirmed_prop, nups=7, ndowns = 0)
+# findpeaks(df_uk$new_confirmed_prop, nups=0, ndowns = 7)
+# 
+# # Sweden
+# df_sweden <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg=="Sweden")
+# plot(df_sweden$new_confirmed_prop, type="l", main="Sweden")
+# findpeaks(df_sweden$new_confirmed_prop, nups=7, ndowns = 0)
+# findpeaks(df_sweden$new_confirmed_prop, nups=0, ndowns = 7)
+# 
+# # South Korea
+# df_korea <- df_country %>% filter(gender=="overall", age_bucket=="overall", country_agg=="South Korea")
+# plot(df_korea$new_confirmed_prop, type="l", main="South Korea")
+# 
+# findpeaks(df_sample$new_confirmed_prop, nups=, ndowns=10)
+# 
+# 
+# # ------------ Time-series Clustering <<< IN PROGRESS
+# 
+# # Prepare the data for the dtwclust
+# tslist_countries <- df_country %>%
+#   filter(gender=="overall", age_bucket=="overall") %>%
+#   dplyr::select(date, country_agg, new_confirmed_prop) %>%
+#   pivot_wider(., names_from=country_agg, values_from=new_confirmed_prop) %>%
+#   arrange(date) %>%
+#   dplyr::select(-date) %>%
+#   as.list()
+# 
+# # Different parameters to try
+# k <- 3
+# method <- c("ward.D2", "average", "single", 
+#             "complete", "median", "mcquitty")
+# 
+# # Create clustering solution with all select parameters
+# hc_par <- tsclust(
+#   tslist_countries,
+#   k = k,
+#   type = "hierarchical",
+#   distance = "dtw",
+#   seed = 42,
+#   control = hierarchical_control(method = method),
+#   args = tsclust_args(dist = list(window.size = 14)),
+#   trace = TRUE)
+# 
+# # Find the best one in terms of Silhouette, Dunn, Calinski–Harabasz
+# lapply(hc_par, cvi, type = c("Sil", "D", "CH")) %>% 
+#   do.call(rbind, .) %>%
+#   apply(., MARGIN = 2, FUN = which.max)
+# 
+# # Look at the select solutions
+# plot(hc_par[[1]], type = "series")
+# plot(hc_par[[3]], type = "series")
+# plot(hc_par[[6]], type = "series")
+# 
+# # First one seems more appropriate to use
+# plot(hc_par[[6]])
+# hc_par[[6]]
 
 # ------------ Save the final dataset
 setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),

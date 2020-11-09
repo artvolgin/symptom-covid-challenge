@@ -69,16 +69,23 @@ df_state_agg <- df_state_agg %>% left_join(df_state %>%
                                                        mean_pct_avoid_contact=mean(pct_avoid_contact),
                                                        mean_stringency_index=mean(StringencyIndex),
                                                        cluster=max(cluster)))
+colnames(df_state)
 
 # Transform to wide format
-selected_vars <- c("pct_cmnty_cli", "pct_worked_outside_home", "pct_avoid_contact",
+selected_vars <- c("pct_cmnty_cli", "pct_worked_outside_home", "pct_avoid_contact", "pct_cli_anosmia_ageusia",
+                   "pct_self_fever", "pct_self_cough", "pct_self_shortness_of_breath", # CLI SYMPTOMS
+                   "pct_self_difficulty_breathing", "pct_self_anosmia_ageusia", # CLI SYMPTOMS
+                   "pct_self_sore_throat", "pct_self_persistent_pain_pressure_in_chest", # OTHER SYMPTOMS
+                   "pct_self_nausea_vomiting", "pct_self_diarrhea", # OTHER SYMPTOMS
                    "pct_testing_shortage", "StringencyIndex")
 
-df_state <- df_state %>% dplyr::select(c(c("state_code", "date", "cluster", "age_bucket"), selected_vars))
+df_state <- df_state %>% dplyr::select(c(c("state_code", "date", "cluster", "cases_prop", "deaths_prop",
+                                           "age_bucket"), selected_vars))
 
 # Long to wide format
 df_state_wide <- pivot_wider(df_state,
-                             id_cols = c("date", "state_code", "cluster", "StringencyIndex"),
+                             id_cols = c("date", "state_code", "cluster", "cases_prop",
+                                         "deaths_prop", "StringencyIndex"),
                              names_from = age_bucket,
                              values_from = colnames(df_state)[startsWith(colnames(df_state), "pct_")])
 colnames(df_state_wide) <- str_replace(colnames(df_state_wide), "-", "_")
@@ -108,24 +115,83 @@ df_state_wide <- df_state_wide %>% arrange(state_code, date)
 
 ### -------------------------- MODELLING
 
+### --- MODEL 0. Symptoms + Number of cases
+variables.0 <- c("cases_prop",
+                 "pct_self_fever_overall",
+                 "pct_self_cough_overall",
+                 "pct_self_shortness_of_breath_overall",
+                 "pct_self_difficulty_breathing_overall",
+                 "pct_self_anosmia_ageusia_overall")
+mlvar.0 <- mlVAR(df_state_wide,
+                   vars = variables.0,
+                   idvar = "state_code", lags = 14,
+                   temporal = "correlated", nCores = 12, scale=T)
+
 ### --- MODEL 1. OVERALL
-variables.1 <- c("pct_cmnty_cli_overall",
+variables.1 <- c("pct_cmnty_cli_overall", 
                  "pct_avoid_contact_overall",
                  "pct_worked_outside_home_overall",
                  "pct_testing_shortage_overall",
                  "StringencyIndex")
 mlvar.1 <- mlVAR(df_state_wide,
-                vars = variables.1,
-                idvar = "state_code", lags = 10,
-                temporal = "correlated", nCores = 12, scale=T)
+                  vars = variables.1,
+                  idvar = "state_code", lags = 14,
+                  temporal = "correlated", nCores = 12, scale=T)
+
+### --- MODEL 1.C OVERALL, cases
+variables.1.c <- c("cases_prop", 
+                   "pct_avoid_contact_overall",
+                   "pct_worked_outside_home_overall",
+                   "pct_testing_shortage_overall",
+                   "StringencyIndex")
+mlvar.1.c <- mlVAR(df_state_wide,
+                   vars = variables.1.c,
+                   idvar = "state_code", lags = 14,
+                   temporal = "correlated", nCores = 12, scale=T)
+# plot(mlvar.1.c, vsize=12, label.cex=3, label.scale.equal=T, type="temporal", layout="circle")
+
+### --- MODEL 1.1 18-34 +
+variables.1.1 <- c("pct_cmnty_cli_18_34",
+                   "pct_avoid_contact_18_34",
+                   "pct_worked_outside_home_18_34",
+                   "pct_testing_shortage_18_34",
+                   "StringencyIndex")
+mlvar.1.1 <- mlVAR(df_state_wide,
+                   vars = variables.1.1,
+                   idvar = "state_code", lags = 14,
+                   temporal = "correlated", nCores = 12, scale=T)
+
+### --- MODEL 1.2 55+
+variables.1.2 <- c("pct_cmnty_cli_55",
+                   "pct_avoid_contact_55",
+                   "pct_worked_outside_home_55",
+                   "pct_testing_shortage_55",
+                   "StringencyIndex")
+mlvar.1.2 <- mlVAR(df_state_wide,
+                   vars = variables.1.2,
+                   idvar = "state_code", lags = 14,
+                   temporal = "correlated", nCores = 12, scale=T)
+
+### --- MODEL 2.1 OVERALL, Only cluster №1
+mlvar.2.1 <- mlVAR(df_state_wide %>% filter(cluster=="1"),
+                   vars = variables.1,
+                   idvar = "state_code", lags = 14,
+                   temporal = "correlated", nCores = 12, scale=T)
+
+### --- MODEL 2.2 OVERALL, Only cluster №2
+mlvar.2.2 <- mlVAR(df_state_wide %>% filter(cluster=="2"),
+                   vars = variables.1,
+                   idvar = "state_code", lags = 14,
+                   temporal = "correlated", nCores = 12, scale=T)
+
 
 
 # --- TESTING: Compute confidence intervals for random effects >>>>>>>>>>>>>>>>>>>>>>>
 library(lme4)
 
-lmer_model <- mlvar.1.1$output$temporal$pct_cmnty_sick_overall
+lmer_model <- mlvar.1$output$temporal$pct_cmnty_cli_overall
 
-cc <- coef(lmer_model)$country_agg
+cc <- coef(lmer_model)$state_code
 cc <- cc[1:6]
 
 ## variances of fixed effects
@@ -145,8 +211,8 @@ res_mean <- res[1:(ncol(res)/2)]
 colnames(res_mean) <- paste0("V", as.character(c(1:ncol(res_mean))), "_mean")
 res_se <- res[((ncol(res)/2)+1):ncol(res)]
 colnames(res_se) <- paste0("V", as.character(c(1:ncol(res_se))), "_se")
-res_low <- res_mean - (2*res_se)
-res_high <- res_mean + (2*res_se)
+res_low <- res_mean - (1.96*res_se)
+res_high <- res_mean + (1.96*res_se)
 res_signif <- as.data.frame(sign(res_low) == sign(res_high))
 colnames(res_signif) <- paste0("V", as.character(c(1:ncol(res_signif))), "_signif")
 colSums(res_signif)
@@ -155,46 +221,84 @@ res_full <- cbind(res_mean, res_se, res_signif)
 # --- TESTING: Compute confidence intervals for random effects >>>>>>>>>>>>>>>>>>>>>>>
 
 
+### -------------------------- PLOTTING
 
 
+### --- PLOT 0 SYMPTOMS
+mlvar.0$input$vars <- c("New\nCases", "Fever", "Cough", "Shortness\nof breath",
+                        "Difficulty\nbreathing", "Anosmia /\nAgeusia")
+plot(mlvar.0, vsize=7, esize=7, label.cex=3, label.scale.equal=T,
+     type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey", "lightgrey"),
+     color=c("gainsboro","white", "white", "white", "white", "white"),
+     shape=c("square", "circle", "circle", "circle", "circle", "circle"),
+     asize=5,  edge.labels=T, edge.label.cex=1.5)
 
 
+### --- PLOT 1. OVERALL NETWORK
+mlvar.1$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
+plot(mlvar.1, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
+     type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
+     color=c("gainsboro","white", "white", "white", "white"),
+     shape=c("square", "circle", "circle", "circle", "circle"),
+     asize=5,  edge.labels=T, edge.label.cex=1.5)
 
-### --- MODEL 1.1 OVERALL, Only cluster №1
-mlvar.1.1 <- mlVAR(df_state_wide %>% filter(cluster=="1"),
-                   vars = variables.1,
-                   idvar = "state_code", lags = 10,
-                   temporal = "correlated", nCores = 12, scale=T)
 
-### --- MODEL 1.2 OVERALL, Only cluster №2
-mlvar.1.2 <- mlVAR(df_state_wide %>% filter(cluster=="2"),
-                   vars = variables.1,
-                   idvar = "state_code", lags = 10,
-                   temporal = "correlated", nCores = 12, scale=T)
+### --- PLOT 1.C OVERALL NETWORK, Cases
+mlvar.1.c$input$vars <- c("New\nCases", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
+plot(mlvar.1.c, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
+     type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
+     color=c("gainsboro","white", "white", "white", "white"),
+     shape=c("square", "circle", "circle", "circle", "circle"),
+     asize=5,  edge.labels=T, edge.label.cex=1.5)
 
-### --- MODEL 2. 18-34
-variables.2 <- c(
-  "pct_cmnty_cli_18_34",
-  "pct_avoid_contact_18_34",
-  "pct_worked_outside_home_18_34",
-  "pct_testing_shortage_18_34",
-  "StringencyIndex")
-mlvar.2 <- mlVAR(df_state_wide,
-                 vars = variables.2,
-                 idvar = "state_code", lags = 10,
-                 temporal = "correlated", nCores = 12, scale=T)
+### --- PLOT 2. 18-34 NETWORK
+mlvar.1.1$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
+plot(mlvar.1.1, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
+     type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
+     color=c("gainsboro","white", "white", "white", "white"),
+     shape=c("square", "circle", "circle", "circle", "circle"),
+     asize=5,  edge.labels=T, edge.label.cex=1.5)
 
-### --- MODEL 3. 55+
-variables.3 <- c(
-  "pct_cmnty_cli_55",
-  "pct_avoid_contact_55",
-  "pct_worked_outside_home_55",
-  "pct_testing_shortage_55",
-  "StringencyIndex")
-mlvar.3 <- mlVAR(df_state_wide,
-                 vars = variables.3,
-                 idvar = "state_code", lags = 10,
-                 temporal = "correlated", nCores = 12, scale=T)
+### --- PLOT 3. 55+ NETWORK
+mlvar.1.2$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
+plot(mlvar.1.2, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
+     type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
+     color=c("gainsboro","white", "white", "white", "white"),
+     shape=c("square", "circle", "circle", "circle", "circle"),
+     asize=5,  edge.labels=T, edge.label.cex=1.5)
+
+### --- PLOT 4.1 OVERALL NETWORK, CLUSTER №1
+mlvar.2.1$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
+plot(mlvar.2.1, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
+     type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
+     color=c("gainsboro","white", "white", "white", "white"),
+     shape=c("square", "circle", "circle", "circle", "circle"),
+     asize=5,  edge.labels=T, edge.label.cex=1.5)
+
+### --- PLOT 4.1 OVERALL NETWORK, CLUSTER №2
+mlvar.2.2$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
+plot(mlvar.2.2, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
+     type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
+     color=c("gainsboro","white", "white", "white", "white"),
+     shape=c("square", "circle", "circle", "circle", "circle"),
+     asize=5,  edge.labels=T, edge.label.cex=1.5)
+
+
+### --- PLOT 5. The Effects of the Stringency Index and Avoiding Contact on CLI & Time-Clusters
 
 # Obtain coeficents for each state
 coef_by_states <- list()
@@ -205,106 +309,18 @@ for (i in 1:length(mlvar.1$IDs)){
 }
 coef_by_states <- do.call(rbind, coef_by_states)
 
-
-
-# Compare coeficents for states and sd for the whole model
-# library(sjmisc)
-# library(sjstats)
-# library(parameters)
-# parameters::standard_error(mlvar.1)
-# 
-# unique(coef_by_states$Var1)
-# 
-# selected_coefs <- coef_by_states %>%
-#   filter(Var1=="pct_avoid_contact_overall",
-#          Var2=="pct_cmnty_cli_overall")
-# hist(selected_coefs$value, breaks = 52)
-# 
-# t <- mlvar.1$results
-# t$Beta$subject
-# 
-# t <- mlvar.1$results$Beta
-# t$mean[6]
-# mean(selected_coefs$value)
-# t$lower[6]
-# t$upper[6]
-# t$SE[6]
-
-
-### -------------------------- PLOTTING
-
-### --- PLOT 1.1 OVERALL NETWORK - TEMPORAL
-mlvar.1$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
-plot(mlvar.1, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
-     type="temporal", layout="circle", labels=T,
-     border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
-     asize=5,  edge.labels=T, edge.label.cex=1.5)
-
-### --- PLOT 1.1.1 OVERALL NETWORK - Cluster №1
-mlvar.1.1$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
-plot(mlvar.1.1, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
-     type="temporal", layout="circle", labels=T,
-     border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
-     asize=5,  edge.labels=T, edge.label.cex=1.5)
-
-### --- PLOT 1.1.2 OVERALL NETWORK - Cluster №2
-mlvar.1.2$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
-plot(mlvar.1.2, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
-     type="temporal", layout="circle", labels=T,
-     border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
-     asize=5,  edge.labels=T, edge.label.cex=1.5)
-
-### --- PLOT 1.2 OVERALL NETWORK - CONTEMPORANEOUS
-plot(mlvar.1, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
-     type="contemporaneous", layout="circle", labels=T,
-     border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
-     asize=5,  edge.labels=T, edge.label.cex=1.5)
-
-### --- PLOT 2. 18-34 NETWORK
-mlvar.2$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
-plot(mlvar.2, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
-     type="temporal", layout="circle", labels=T,
-     border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
-     asize=5,  edge.labels=T, edge.label.cex=1.5)
-
-### --- PLOT 3. 55+ NETWORK
-mlvar.3$input$vars <- c("CLI", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
-plot(mlvar.3, vsize=7, esize=7, label.cex=c(2.7,3,3,3.3,3.5), label.scale.equal=F,
-     type="temporal", layout="circle", labels=T,
-     border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
-     asize=5,  edge.labels=T, edge.label.cex=1.5)
-
-
-### --- PLOT 4. The Effects of the Stringency Index and Avoiding Contact on CLI & Time-Clusters
 # Preprocessing
 df_plot <- data.frame(
-  StringencyIndex.impact = (coef_by_states %>% filter(Var1=="StringencyIndex",
-                                                      Var2=="pct_cmnty_cli_overall"))$value,
-  pct_avoid_contact_overall.impact=(coef_by_states %>% filter(Var1=="pct_avoid_contact_overall",
-                                                              Var2=="pct_cmnty_cli_overall"))$value,
+  StringencyIndex.impact = (coef_by_states %>% filter(Var1=="Stringency\nIndex",
+                                                      Var2=="CLI"))$value,
+  pct_avoid_contact_overall.impact=(coef_by_states %>% filter(Var1=="Avoiding\nContact",
+                                                              Var2=="CLI"))$value,
   state_code=unique(coef_by_states$state)
 )
 df_plot <- df_plot %>%
   left_join(df_state_agg %>% dplyr::select(cluster, state_code)) %>%
   mutate(cluster=as.character(cluster))
+
 # Plot
 ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact, color=cluster)) +
   geom_point(size=5, alpha=0.75) +
@@ -314,104 +330,26 @@ ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.im
   theme(panel.background = element_rect(fill = "white", colour = "grey50"),
         axis.title=element_text(size=22,face="bold"))
 
+### --- PLOT 6. The Effects of the Stringency Index and Avoiding Contact on CLI & Politics
+df_votes <- read.csv("1976-2016-president.csv")
+df_votes <- df_votes %>% filter(year==2016, party=="republican") %>%
+  mutate(republican_percent=candidatevotes/totalvotes,
+         state_code=tolower(state_po)) %>%
+  dplyr::select(state_code, republican_percent)
+df_plot <- df_plot %>% left_join(df_votes)
+df_plot$republican_percent <- df_plot$republican_percent > 0.5
+
+# Plot
+ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact, color=republican_percent)) +
+  geom_point(size=5, alpha=0.75) +
+  geom_text_repel(aes(label = toupper(state_code)), size = 5) + 
+  labs(x = "Temporal Effect of Stringency Index on CLI",
+       y = "Temporal Effect of Avoiding Contact on CLI") + 
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"),
+        axis.title=element_text(size=22,face="bold"))
+
+# TODO:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### --- PLOT 4. MAP OF EFFECTS: StringencyIndex ---> pct_cmnty_cli_overall
-
-# # Function for plotting coefficents on the map
-# plot.coef.map <- function(from_var, to_var, coef_by_states=coef_by_states){
-#   
-#   selected_coefs <- coef_by_states %>%
-#     filter(Var1==from_var, Var2==to_var)
-#   plot_usmap(data = selected_coefs, values = "value",
-#              color = "white", labels = T, label_color = "black") + 
-#     # scale_fill_continuous(type = "viridis", name = "coef", label = scales::comma) + 
-#     scale_fill_gradientn(colours=c("brown2","white","forestgreen"),
-#                          values=rescale(c(min(selected_coefs$value), 0, max(selected_coefs$value))),
-#                          name="Coefficient") + 
-#     theme(legend.position = "right",
-#           plot.title = element_text(hjust=0.5, size=18),
-#           plot.subtitle = element_text(hjust=0.5, size=14),
-#           legend.text = element_text(size = 14),
-#           legend.title = element_text(size = 14)) + 
-#     labs(title = paste0(from_var, "  --->  ", to_var), subtitle = "")
-#   
-# }
-# 
-# plot.coef.map("StringencyIndex", "pct_cmnty_cli_overall", coef_by_states)
-# 
-# ### --- PLOT 5. MAP OF EFFECTS: pct_avoid_contact_overall ---> pct_cmnty_cli_overall
-# plot.coef.map("pct_avoid_contact_overall", "pct_cmnty_cli_overall", coef_by_states)
-# 
-# ### --- PLOT 6. MAP Mean Avoiding Contact
-# df_state_agg$state <- df_state_agg$state_code
-# 
-# plot_usmap(data = df_state_agg, values = "mean_pct_avoid_contact",
-#            color = "white", labels = T, label_color = "black") + 
-#   # scale_fill_continuous(type = "viridis", name = "coef", label = scales::comma) + 
-#   scale_fill_gradientn(colours=c("white","steelblue2"),
-#                        # values=rescale(c(min(selected_coefs$value), 0, max(selected_coefs$value))),
-#                        name="Pct") + 
-#   theme(legend.position = "right",
-#         plot.title = element_text(hjust=0.5, size=18),
-#         plot.subtitle = element_text(hjust=0.5, size=14),
-#         legend.text = element_text(size = 14),
-#         legend.title = element_text(size = 14)) + 
-#   labs(title = "mean_pct_avoid_contact", subtitle = "")
-# 
-# ### --- PLOT 7. MAP Mean Stringency Index
-# plot_usmap(data = df_state_agg, values = "mean_stringency_index",
-#            color = "white", labels = T, label_color = "black") + 
-#   # scale_fill_continuous(type = "viridis", name = "coef", label = scales::comma) + 
-#   scale_fill_gradientn(colours=c("white","steelblue2"),
-#                        # values=rescale(c(min(selected_coefs$value), 0, max(selected_coefs$value))),
-#                        name="Index") + 
-#   theme(legend.position = "right",
-#         plot.title = element_text(hjust=0.5, size=18),
-#         plot.subtitle = element_text(hjust=0.5, size=14),
-#         legend.text = element_text(size = 14),
-#         legend.title = element_text(size = 14)) + 
-#   labs(title = "mean_stringency_index", subtitle = "")
-# 
-# 
-# ### --- PLOT 8 SCATTER PLOT: The Effects of the Stringency Index and Avoiding Contact on CLI
-# 
-# # Preprocessing
-# df_plot <- data.frame(
-#   StringencyIndex.impact = (coef_by_states %>% filter(Var1=="StringencyIndex",
-#                                                       Var2=="pct_cmnty_cli_overall"))$value,
-#   pct_avoid_contact_overall.impact=(coef_by_states %>% filter(Var1=="pct_avoid_contact_overall",
-#                                                               Var2=="pct_cmnty_cli_overall"))$value,
-#   state_code=unique(coef_by_states$state)
-# )
-# df_plot <- df_plot %>% left_join(df_state_agg %>% dplyr::select(total_cases_prop, state_code))
-# string_index <- df_plot$StringencyIndex.impact
-# avoid_contact <- df_plot$pct_avoid_contact_overall.impact
-# point_colors <- ifelse(string_index > 0 & avoid_contact > 0, "brown2",
-#                      ifelse(string_index < 0 & avoid_contact < 0, "forestgreen", "steelblue1"))
-# # Plot
-# ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact)) +
-#   geom_point(size=5, color=point_colors, alpha=0.75) +
-#   geom_text_repel(aes(label = toupper(state_code)), size = 5) + 
-#   geom_hline(yintercept = 0, color="grey", size=1, linetype="dashed") + 
-#   geom_vline(xintercept = 0, color="darkgrey", size=1, linetype="dashed") + 
-#   labs(x = "Temporal Effect of Stringency Index on CLI",
-#        y = "Temporal Effect of Avoiding Contact on CLI") + 
-#   theme(panel.background = element_rect(fill = "white", colour = "grey50"),
-#         axis.title=element_text(size=22,face="bold"))
 
