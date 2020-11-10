@@ -225,10 +225,18 @@ res_full <- cbind(res_mean, res_se, res_signif)
 
 
 ### --- PLOT 0 SYMPTOMS
-mlvar.0$input$vars <- c("New\nCases", "Fever", "Cough", "Shortness\nof breath",
-                        "Difficulty\nbreathing", "Anosmia /\nAgeusia")
+mlvar.0$input$vars <- c("New\nCases", "Fever", "Cough", "Shortness\nof Breath",
+                        "Difficulty\nBreathing", "Anosmia /\nAgeusia")
 plot(mlvar.0, vsize=7, esize=7, label.cex=3, label.scale.equal=T,
      type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey", "lightgrey"),
+     color=c("gainsboro","white", "white", "white", "white", "white"),
+     shape=c("square", "circle", "circle", "circle", "circle", "circle"),
+     asize=5,  edge.labels=T, edge.label.cex=1.5)
+
+plot(mlvar.0, vsize=7, esize=7, label.cex=3, label.scale.equal=T,
+     type="contemporaneous", layout="circle", labels=T,
      border.width=3,
      border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey", "lightgrey"),
      color=c("gainsboro","white", "white", "white", "white", "white"),
@@ -330,17 +338,44 @@ ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.im
   theme(panel.background = element_rect(fill = "white", colour = "grey50"),
         axis.title=element_text(size=22,face="bold"))
 
-### --- PLOT 6. The Effects of the Stringency Index and Avoiding Contact on CLI & Politics
-df_votes <- read.csv("1976-2016-president.csv")
-df_votes <- df_votes %>% filter(year==2016, party=="republican") %>%
-  mutate(republican_percent=candidatevotes/totalvotes,
-         state_code=tolower(state_po)) %>%
-  dplyr::select(state_code, republican_percent)
-df_plot <- df_plot %>% left_join(df_votes)
-df_plot$republican_percent <- df_plot$republican_percent > 0.5
 
-# Plot
-ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact, color=republican_percent)) +
+
+### TODO: IN PROGRESS
+
+# ADD number of cases
+# Load the total number of cases per population
+df_cases <- covidcast_signal("jhu-csse", "confirmed_cumulative_prop",
+                             max(df_state$date),
+                             max(df_state$date),
+                             geo_type = "state")
+df_cases <- df_cases %>%
+  data.frame() %>%
+  rename("total_cases_prop"="value", "state_code"="geo_value", "date"="time_value") %>%
+  dplyr::select("state_code", "total_cases_prop")
+
+
+### --- PLOT 6. The Effects of the Stringency Index and Avoiding Contact on CLI & Politics
+df_governors <- read.csv("us-governors.csv")
+df_governors <- df_governors %>%
+  dplyr::select(state_code_slug, party) %>%
+  rename(state_code=state_code_slug)
+df_plot <- df_plot %>% left_join(df_governors)
+df_plot$party[df_plot$state_code == "dc"] <- "democrat"
+
+# Add total cases
+df_plot <- df_plot %>% left_join(df_cases)
+# df_votes <- read.csv("1976-2016-president.csv")
+# df_votes <- df_votes %>% filter(year==2016, party=="republican") %>%
+#   mutate(republican_percent=candidatevotes/totalvotes,
+#          state_code=tolower(state_po)) %>%
+#   dplyr::select(state_code, republican_percent)
+# df_plot <- df_plot %>% left_join(df_votes)
+# df_plot$republican_percent <- df_plot$republican_percent > 0.5
+df_plot
+
+# Plot 1 version
+ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact,
+                    color=party)) +
   geom_point(size=5, alpha=0.75) +
   geom_text_repel(aes(label = toupper(state_code)), size = 5) + 
   labs(x = "Temporal Effect of Stringency Index on CLI",
@@ -348,7 +383,15 @@ ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.im
   theme(panel.background = element_rect(fill = "white", colour = "grey50"),
         axis.title=element_text(size=22,face="bold"))
 
-# TODO:
+# Plot 2 version
+ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact,
+                    color=party, size=total_cases_prop)) +
+  geom_point(size=df_plot$total_cases_prop*0.005, alpha=0.75) +
+  geom_text_repel(aes(label = toupper(state_code)), size = 5) + 
+  labs(x = "Temporal Effect of Stringency Index on CLI",
+       y = "Temporal Effect of Avoiding Contact on CLI") + 
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"),
+        axis.title=element_text(size=22,face="bold"))
 
 
 

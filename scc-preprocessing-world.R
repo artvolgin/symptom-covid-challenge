@@ -206,7 +206,7 @@ df_country <- df_country %>% dplyr::select(-c(wikidata, datacommons, subregion1_
 keep_countries <- (df_country %>%
   group_by(country_agg) %>%
   summarise(total_cases=max(total_confirmed, na.rm=T)) %>%
-  filter(total_cases>=10000) %>% 
+  filter(total_cases>=100000) %>% 
   dplyr::select(country_agg))$country_agg
 df_country <- df_country %>% filter(country_agg %in% keep_countries)
 

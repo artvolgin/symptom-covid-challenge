@@ -219,7 +219,7 @@ tslist_state <- df_state %>%
 ### Find the best clustering algorithm with grid-search type of approach
 
 # Different parameters to try
-k <- 2
+k <- 3
 method <- c("ward.D2", "average", "single", 
             "complete", "median", "mcquitty")
 # distance <- c("dtw", "dtw2", "dtw_lb", "lbk", "lbi", "sbd", "gak", "sdtw")
@@ -251,6 +251,9 @@ best_solution <- hc_par[[2]]
 state_cluster <- data.frame(cluster=as.character(best_solution@cluster),
                                state_code=best_solution$labels)
 df_state <- df_state %>% left_join(state_cluster)
+
+state_cluster$state_code <- toupper(state_cluster$state_code)
+export(state_cluster, "state_cluster.xlsx")
 
 # ------------ Save the data
 
