@@ -31,9 +31,7 @@ df_state$date <- as.Date(df_state$date)
 df_state <- df_state %>% filter(date < "2020-09-01",
                                 date > "2020-04-24")
 # Select only observations that represent "overall" category and remove puerto rico
-df_state <- df_state %>%
-  # filter(gender=="overall", age_bucket=="overall", state_code!="pr")
-  filter(state_code!="pr")
+df_state <- df_state %>% filter(state_code!="pr")
 
 # Drop unweighted columns and rename others
 keep_columns <- c("date", "state_code", "gender", "age_bucket", "summed_n")
@@ -195,18 +193,7 @@ for(j in 1:length(state_codes)){
 df_state <- do.call(rbind, list_states)
 
 
-# ------------ Time-series Clustering <<< IN PROGRESS
-
-# Plot the number of cases for each state
-for (st_cd in unique(df_state$state_code)){
-  
-  df_temp <- df_state %>%
-    filter(gender=="overall", age_bucket=="overall", state_code==st_cd) %>%
-    dplyr::select(date, state_code, cases_prop)
-  plot(df_temp$cases_prop, type="l", main=st_cd)
-  print(st_cd)
-  
-}
+# ------------ Time-series Clustering
 
 # Prepare the data for the dtwclust
 tslist_state <- df_state %>%
@@ -223,7 +210,6 @@ tslist_state <- df_state %>%
 k <- 2
 method <- c("ward.D2", "average", "single", 
             "complete", "median", "mcquitty")
-# distance <- c("dtw", "dtw2", "dtw_lb", "lbk", "lbi", "sbd", "gak", "sdtw")
 
 # Create clustering solution with all select parameters
 hc_par <- tsclust(
@@ -253,10 +239,6 @@ state_cluster <- data.frame(cluster=as.character(best_solution@cluster),
                                state_code=best_solution$labels)
 df_state <- df_state %>% left_join(state_cluster)
 
-state_cluster$state_code <- toupper(state_cluster$state_code)
-export(state_cluster, "state_cluster.xlsx")
-
-
 # ------------ Save the data
 
 # Set the working directory
@@ -266,7 +248,5 @@ setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
 # Save the data
 saveRDS(df_state, "df_state.rds")
 
-# Load the data
-df_state <- readRDS("df_state.rds")
 
 
