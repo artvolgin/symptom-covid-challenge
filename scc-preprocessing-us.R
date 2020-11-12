@@ -11,6 +11,7 @@ library(ggfortify)
 library(reshape2)
 library(stringr)
 library(rio)
+library(dtwclust)
 library(gridExtra)
 library(tidyr)
 library(dplyr)
@@ -219,7 +220,7 @@ tslist_state <- df_state %>%
 ### Find the best clustering algorithm with grid-search type of approach
 
 # Different parameters to try
-k <- 3
+k <- 2
 method <- c("ward.D2", "average", "single", 
             "complete", "median", "mcquitty")
 # distance <- c("dtw", "dtw2", "dtw_lb", "lbk", "lbi", "sbd", "gak", "sdtw")
@@ -254,6 +255,7 @@ df_state <- df_state %>% left_join(state_cluster)
 
 state_cluster$state_code <- toupper(state_cluster$state_code)
 export(state_cluster, "state_cluster.xlsx")
+
 
 # ------------ Save the data
 
