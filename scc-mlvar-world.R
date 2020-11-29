@@ -149,16 +149,6 @@ mlvar.1.2 <- mlVAR(df_country_wide,
                    idvar = "country_agg", lags = 14,
                    temporal = "correlated", nCores = 12)
 
-### --- MODEL 2: New deaths and 18-34 and 55+ together 
-variables.2 <- c("pct_cmnty_sick_18_34", "pct_cmnty_sick_55",
-                 "pct_wear_mask_18_34", "pct_wear_mask_55",
-                 "pct_attended_public_event_18_34", "pct_attended_public_event_55",
-                 "stringency_index", "new_deceased_prop")
-mlvar.2 <- mlVAR(df_country_wide,
-                 vars = variables.2,
-                 idvar = "country_agg", lags = 14,
-                 temporal = "correlated", nCores = 12, scale=T, scaleWithin=T)
-
 
 # --- Compute confidence intervals for random effects 
 
@@ -253,28 +243,6 @@ plot(mlvar.1.2,
      border.width=3,
      border.color="gray45",
      color=c("white","gainsboro", "white", "white", "white", "white", "white"),
-     shape="circle",
-     asize=5, edge.labels=T, edge.label.cex=0.8)
-
-### --- PLOT 2 New deaths and 18-34 and 55+ together 
-mlvar.2$input$vars <- c("CLI in\nCommunity\n18-34", "CLI in\nCommunity\n55+",
-                        "Wear\nMask\n18-34", "Wear\nMask\n55+",
-                        "Attended\nPublic Event\n18-34", "Attended\nPublic Event\n55+",
-                        "Stringency\nIndex", "New\nDeaths")
-plot(mlvar.2,
-     vsize=10,
-     esize=5,
-     label.prop=0.22,
-     label.cex=6,
-     usePCH=F,
-     alpha=0.01,
-     node.resolution=300,
-     label.scale.equal=T,
-     layoutScale=c(0.8,0.8),
-     type="temporal", layout="circle", labels=T,
-     border.width=3,
-     border.color="gray45",
-     color=c("white","white", "white", "white", "white", "white", "gainsboro", "gainsboro"),
      shape="circle",
      asize=5, edge.labels=T, edge.label.cex=0.8)
 
