@@ -200,7 +200,7 @@ for (i in 1:21){
   colnames(temp_coef)<- substr(colnames(temp_coef), 1, regexpr("\\.", colnames(temp_coef))-1)
   lags_coef <- rbind(lags_coef, temp_coef[1,])
 
-  print(i)
+  print(i) 
   
 }
 
