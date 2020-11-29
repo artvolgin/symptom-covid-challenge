@@ -202,7 +202,7 @@ keep_countries <- (df_country %>%
   dplyr::select(country_agg))$country_agg
 df_country <- df_country %>% filter(country_agg %in% keep_countries)
 
-# Calculate COVID-19 related statistics proportional to population
+# Calculate COVID-19 related statistics proportional to population 
 df_country <- df_country %>%
   mutate(new_confirmed_prop=new_confirmed/population,
          new_deceased_prop=new_deceased/population,

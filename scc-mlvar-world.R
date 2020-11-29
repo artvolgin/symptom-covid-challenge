@@ -52,7 +52,6 @@ df_country_wide <- pivot_wider(df_country,
                                            "new_confirmed_prop", "new_deceased_prop", "new_deceased"
                                            ),
                                names_from = age_bucket,
-                               # values_from = pct_wear_mask)
                                values_from = colnames(df_country)[startsWith(colnames(df_country), "pct_")])
 colnames(df_country_wide) <- str_replace(colnames(df_country_wide), "-", "_")
 colnames(df_country_wide) <- str_remove(colnames(df_country_wide), "\\+")
@@ -86,7 +85,7 @@ for (country_name in countries_to_plot){
          theme_classic() + 
          labs(x = "Date",
               y = "Normalized Value",
-              title = country_name) + # <<< Remove later
+              title = country_name) +
          theme(legend.position = "none",
                axis.title=element_text(size=18,face="bold"),
                axis.text=element_text(size=12)))
@@ -310,7 +309,6 @@ ggplot(df_plot.together, aes(x = reorder(country_agg, Masks.CLI),
   coord_flip() + theme_minimal() + 
   theme(axis.title=element_text(size=24),
         legend.text=element_text(size=16),
-        # legend.position = c(0.9, 0.1),
         legend.title=element_text(size=16),
         text = element_text(size=20),
         axis.text.y = element_text(face = ifelse(df_plot.together$country_agg %in% c("Sweden", "Peru", "Iraq"),

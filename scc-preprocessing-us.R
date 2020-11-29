@@ -357,7 +357,7 @@ plot(hc_par[[2]], type = "series")
 
 # First one seems more appropriate to use
 plot(hc_par[[2]])
-best_solution <- hc_par[[2]]
+best_solution <- hc_par[[2]] 
 
 # Add cluster number to the main dataframe
 state_cluster <- data.frame(cluster=as.character(best_solution@cluster),
