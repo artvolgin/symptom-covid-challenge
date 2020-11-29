@@ -1,4 +1,4 @@
-## The Interplay between Policy Interventions and Voluntary Actions for Battling COVID-19.
+## Policy Interventions and Voluntary Actions for Battling COVID-19.
 ### Multilevel Vector Autoregression Modeling Using the CMU and UMD Survey Data.
 
 The analytical approach for the COVID-19 Symptom Data Challenge.\
