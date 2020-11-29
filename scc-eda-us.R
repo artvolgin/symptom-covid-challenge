@@ -30,7 +30,6 @@ setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
 # Load the data
 df_state <- readRDS("df_state.rds")
 
-# Function for plotting
 
 plot.eda.ts <- function(df, st_code=F){
   
@@ -87,18 +86,53 @@ plot.eda.ts(df_state)
 plot.eda.ts(df_state, 'tx')
 # Plot for Florida
 plot.eda.ts(df_state, 'fl')
-# Plot for New York
-plot.eda.ts(df_state, 'ny')
+# Plot for Michigan
+plot.eda.ts(df_state, 'mi')
 
-# Plots for all the states
-for (st_cd in unique(df_state$state_code)){
+
+plot.eda.ts.2 <- function(df, st_code=F){
   
-  plot(plot.eda.ts(df_state, st_cd))
-  print(st_cd)
+  if (st_code==F){
+    
+    df <- df %>%
+      filter(gender=="overall", age_bucket=="overall") %>%
+      dplyr::select(date, pct_cmnty_cli, pct_avoid_contact) %>%
+      group_by(date) %>%
+      summarise_all(mean) %>% 
+      mutate(pct_cmnty_cli=minmax_normalize(pct_cmnty_cli),
+             pct_avoid_contact=minmax_normalize(pct_avoid_contact))
+    
+  } else {
+    
+    df <- df %>% filter(state_code==st_code) %>% 
+      filter(gender=="overall", age_bucket=="overall") %>%
+      dplyr::select(date, pct_cmnty_cli, pct_avoid_contact) %>% 
+      mutate(pct_cmnty_cli=minmax_normalize(pct_cmnty_cli),
+             pct_avoid_contact=minmax_normalize(pct_avoid_contact))
+  }
+  
+  df <- gather(df, group, value, -date)
+  
+  ggplot(df, aes(x = date, y = value)) + 
+    geom_line(aes(color = group, linetype = group), size = 1.5) +
+    scale_color_manual(values = c("coral2",
+                                  "gray40")) +
+    scale_linetype_manual(values=c("solid", "dashed")) +
+    theme_classic() + 
+    labs(x = "Date",
+         y = "Normalized Value",
+         title = st_code) + # <<< Remove later
+    theme(legend.position = "none",
+          axis.title=element_text(size=18,face="bold"),
+          axis.text=element_text(size=12))
   
 }
 
 
+# Plot for Texas
+plot.eda.ts.2(df_state, 'tx')
+# Plot for Minnesota
+plot.eda.ts.2(df_state, 'mn')
 
 
 

@@ -14,6 +14,7 @@ library(rio)
 library(gridExtra)
 library(tidyr)
 library(dplyr)
+library(lme4)
 library(usmap)
 # Extra
 library(covidcast)
@@ -21,6 +22,9 @@ library(mlVAR)
 library(graph4lg)
 library(igraph)
 library(scales)
+library(pheatmap)
+library(RColorBrewer)
+
 
 # Set the working directory
 setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
@@ -77,17 +81,20 @@ selected_vars <- c("pct_cmnty_cli", "pct_worked_outside_home", "pct_avoid_contac
                    "pct_self_sore_throat", "pct_self_persistent_pain_pressure_in_chest",
                    "pct_self_nausea_vomiting", "pct_self_diarrhea",
                    "pct_testing_shortage", "StringencyIndex")
-df_state <- df_state %>% dplyr::select(c(c("state_code", "date", "cluster", "cases_prop", "deaths_prop",
+df_state <- df_state %>% dplyr::select(c(c("state_code", "date", "cluster", "cases_prop", "deaths_prop", 
+                                           "hospital_admissions_prop", "doctor_visits_prop",
                                            "age_bucket"), selected_vars))
 # Long to wide format
 df_state_wide <- pivot_wider(df_state,
                              id_cols = c("date", "state_code", "cluster", "cases_prop",
-                                         "deaths_prop", "StringencyIndex"),
+                                         "deaths_prop", "doctor_visits_prop",
+                                         "hospital_admissions_prop", "StringencyIndex"),
                              names_from = age_bucket,
                              values_from = colnames(df_state)[startsWith(colnames(df_state), "pct_")])
 colnames(df_state_wide) <- str_replace(colnames(df_state_wide), "-", "_")
 colnames(df_state_wide) <- str_remove(colnames(df_state_wide), "\\+")
 selected_vars <- colnames(df_state_wide)[4:ncol(df_state_wide)]
+
 
 # Detrending
 list_states <- list()
@@ -110,7 +117,10 @@ df_state_wide <- do.call(rbind, list_states)
 # Arrange for modelling
 df_state_wide <- df_state_wide %>% arrange(state_code, date)
 
+
 ### -------------------------- MODELLING
+
+
 ### --- MODEL 0. Symptoms + Number of cases
 variables.0 <- c("cases_prop",
                  "pct_self_fever_overall",
@@ -119,9 +129,9 @@ variables.0 <- c("cases_prop",
                  "pct_self_difficulty_breathing_overall",
                  "pct_self_anosmia_ageusia_overall")
 mlvar.0 <- mlVAR(df_state_wide,
-                   vars = variables.0,
-                   idvar = "state_code", lags = 14,
-                   temporal = "correlated", nCores = 12, scale=T)
+                 vars = variables.0,
+                 idvar = "state_code", lags = 14,
+                 temporal = "correlated", nCores = 12, scale=T)
 
 ### --- MODEL 1. OVERALL
 variables.1 <- c("pct_cmnty_cli_overall", 
@@ -130,9 +140,9 @@ variables.1 <- c("pct_cmnty_cli_overall",
                  "pct_testing_shortage_overall",
                  "StringencyIndex")
 mlvar.1 <- mlVAR(df_state_wide,
-                  vars = variables.1,
-                  idvar = "state_code", lags = 14,
-                  temporal = "correlated", nCores = 12, scale=T)
+                 vars = variables.1,
+                 idvar = "state_code", lags = 14,
+                 temporal = "correlated", nCores = 12, scale=T)
 
 ### --- MODEL 1.C OVERALL, cases
 variables.1.c <- c("cases_prop", 
@@ -167,10 +177,42 @@ mlvar.1.2 <- mlVAR(df_state_wide,
                    idvar = "state_code", lags = 14,
                    temporal = "correlated", nCores = 12, scale=T)
 
+### --- MODEL 2. CLI by age groups, Deaths and Hospital admissions
+variables.2 <- c("pct_cmnty_cli_18_34", "pct_cmnty_cli_55",
+                 "deaths_prop", "hospital_admissions_prop",
+                 "StringencyIndex")
+mlvar.2 <- mlVAR(df_state_wide,
+                 vars = variables.2,
+                 idvar = "state_code", lags = 14,
+                 temporal = "correlated", nCores = 12, scale=T,
+                 scaleWithin=T)
 
-# --- TESTING: Compute confidence intervals for random effects >>>>>>>>>>>>>>>>>>>>>>>
-library(lme4)
+### --- Extract coefficents from models with different lags 
+lags_coef <- data.frame()
+for (i in 1:21){
+  
+  mlvar.temp <- mlVAR(df_state_wide,
+                      vars = variables.1,
+                      idvar = "state_code", lags = i,
+                      temporal = "correlated", nCores = 12, scale=T)
+  
+  temp_coef <- data.frame(mlvar.temp$results$Beta$mean)
+  colnames(temp_coef)<- substr(colnames(temp_coef), 1, regexpr("\\.", colnames(temp_coef))-1)
+  lags_coef <- rbind(lags_coef, temp_coef[1,])
 
+  print(i)
+  
+}
+
+lags_coef <- lags_coef %>% t()
+colnames(lags_coef) <- as.character(1:21)
+rownames(lags_coef) <- c("CLI in Community", "Avoiding Contact", "Worked Outside",
+                         "Testing Shortage", "Stringency Index")
+saveRDS(lags_coef, "lags_coef")
+lags_coef <- readRDS("lags_coef")
+
+
+# --- Compute confidence intervals for random effects
 lmer_model <- mlvar.1$output$temporal$pct_cmnty_cli_overall
 
 cc <- coef(lmer_model)$state_code
@@ -200,8 +242,6 @@ colnames(res_signif) <- paste0("V", as.character(c(1:ncol(res_signif))), "_signi
 colSums(res_signif)
 res_full <- cbind(res_mean, res_se, res_signif)
 
-# --- TESTING: Compute confidence intervals for random effects >>>>>>>>>>>>>>>>>>>>>>>
-
 
 ### -------------------------- PLOTTING
 
@@ -220,14 +260,15 @@ plot(mlvar.0,
      layoutScale=c(0.7,0.7),
      type="temporal", layout="circle", labels=T,
      border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gray95","white", "white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle", "circle"),
+     border.color="gray45",
+     color=c("gainsboro","white", "white", "white", "white", "white"),
+     shape="circle",
      asize=5,  edge.labels=T, edge.label.cex=0.8)
 
 
 ### --- PLOT 1. OVERALL NETWORK
-mlvar.1$input$vars <- c("CLI in\nCommunity", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
+mlvar.1$input$vars <- c("CLI in\nCommunity", "Avoiding\nContact", "Worked\nOutside",
+                       "Testing\nShortage", "Stringency\nIndex")
 plot(mlvar.1,
      vsize=10,
      esize=5,
@@ -239,11 +280,10 @@ plot(mlvar.1,
      layoutScale=c(0.7,0.7),
      type="temporal", layout="circle", labels=T,
      border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
+     border.color="gray45",
+     color=c("white", "white", "white", "white", "gainsboro"),
+     shape="circle",
      asize=5,  edge.labels=T, edge.label.cex=0.8)
-
 
 ### --- PLOT 1.C OVERALL NETWORK, Cases
 mlvar.1.c$input$vars <- c("New\nCases", "Avoiding\nContact", "Worked\nOutside", "Testing\nShortage", "Stringency\nIndex")
@@ -258,9 +298,9 @@ plot(mlvar.1.c,
      layoutScale=c(0.7,0.7),
      type="temporal", layout="circle", labels=T,
      border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gray95","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
+     border.color="gray45",
+     color=c("gainsboro","white", "white", "white", "gainsboro"),
+     shape="circle",
      asize=5,  edge.labels=T, edge.label.cex=0.8)
 
 ### --- PLOT 2. 18-34 NETWORK
@@ -276,9 +316,9 @@ plot(mlvar.1.1,
      layoutScale=c(0.7,0.7),
      type="temporal", layout="circle", labels=T,
      border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
+     border.color="gray45",
+     color=c("white","white", "white", "white", "gainsboro"),
+     shape="circle",
      asize=5,  edge.labels=T, edge.label.cex=0.8)
 
 ### --- PLOT 3. 55+ NETWORK
@@ -294,12 +334,32 @@ plot(mlvar.1.2,
      layoutScale=c(0.7,0.7),
      type="temporal", layout="circle", labels=T,
      border.width=3,
-     border.color=c("gray30","lightgrey", "lightgrey", "lightgrey", "lightgrey"),
-     color=c("gainsboro","white", "white", "white", "white"),
-     shape=c("square", "circle", "circle", "circle", "circle"),
+     border.color="gray45",
+     color=c("white","white", "white", "white", "gainsboro"),
+     shape="circle",
      asize=5,  edge.labels=T, edge.label.cex=0.8)
 
-### --- PLOT 5. The Effects of the Stringency Index and Avoiding Contact on CLI & Time-Clusters
+### --- PLOT 4. CLI by age groups, Deaths and Hospitalizations
+mlvar.2$input$vars <- c("CLI in\nCommunity\n18-34", "CLI in\nCommunity\n55+",
+                        "New\nDeaths", "Hospital\nAdmissions", "Stringency\nIndex")
+plot(mlvar.2,
+     vsize=10,
+     esize=5,
+     usePCH=F,
+     node.resolution=300,
+     label.prop=0.22,
+     label.cex=6,
+     label.scale.equal=T,
+     layoutScale=c(0.7,0.7),
+     type="temporal", layout="circle", labels=T,
+     border.width=3,
+     border.color="gray45",
+     color=c("white","white", "gainsboro", "gainsboro", "gainsboro"),
+     shape="circle",
+     asize=5,  edge.labels=T, edge.label.cex=0.8)
+
+
+### --- PLOT 5. The Effects of Avoiding Contact on CLI by States
 
 # Obtain coeficents for each state
 coef_by_states <- list()
@@ -319,92 +379,44 @@ df_plot <- data.frame(
   state_code=unique(coef_by_states$state)
 )
 df_plot <- df_plot %>%
-  left_join(df_state_agg %>% dplyr::select(cluster, state_code)) %>%
+  left_join(df_state_agg %>% dplyr::select(cluster, state_code, state_name)) %>%
   mutate(cluster=as.character(cluster))
 
-# Plot
-ggplot(df_plot, aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact, color=cluster)) +
-  geom_point(size=5, alpha=0.75) +
-  geom_text_repel(aes(label = toupper(state_code)), size = 5) + 
-  labs(x = "Temporal Effect of Stringency Index on CLI",
-       y = "Temporal Effect of Avoiding Contact on CLI") + 
-  theme(panel.background = element_rect(fill = "white", colour = "grey50"),
-        axis.title=element_text(size=22,face="bold"))
+# Add SE of coefficents to the dataset
+res_full$state_code <- rownames(res_full)
+df_plot <- df_plot %>% left_join(res_full %>%
+                        dplyr::select(state_code, V2_se, V5_se) %>%
+                        rename(pct_avoid_contact_overall.impact.se=V5_se, StringencyIndex.impact.se=V2_se))
 
-# ADD number of cases
-# Load the total number of cases per population
-df_cases <- covidcast_signal("jhu-csse", "confirmed_cumulative_prop",
-                             max(df_state$date),
-                             max(df_state$date),
-                             geo_type = "state")
-df_cases <- df_cases %>%
-  data.frame() %>%
-  rename("total_cases_prop"="value", "state_code"="geo_value", "date"="time_value") %>%
-  dplyr::select("state_code", "total_cases_prop")
-
-### --- PLOT 6. The Effects of the Stringency Index and Avoiding Contact on CLI & Politics
-setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
-             "/YandexDisk/covid_facebook/data"))
-df_governors <- read.csv("us-governors.csv")
-df_governors <- df_governors %>%
-  dplyr::select(state_code_slug, party) %>%
-  rename(state_code=state_code_slug)
-df_plot <- df_plot %>% left_join(df_governors)
-df_plot$party[df_plot$state_code == "dc"] <- "democrat"
-df_plot <- df_plot %>%
-  rename(Governor=party, Cluster=cluster) %>%
-  mutate(Governor=recode(Governor, republican="Republican", democrat="Democrat"))
-
-# Add total cases
-df_plot <- df_plot %>% left_join(df_cases)
-
-# Plot CLUSTER 1
-df_plot.1 <- df_plot %>% filter(Cluster==1)
-ggplot(df_plot.1,
-       aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact,
-           color=Governor)) + scale_color_manual(values=c("#0015BC", "#E9141D")) +
-  geom_point(size=7, alpha=0.75) + 
-  geom_text_repel(aes(label = toupper(state_code)), size = 5, show.legend = FALSE) + 
-  labs(x = "Stringency Index  →  CLI in Community",
+df_plot <- df_plot %>% arrange(pct_avoid_contact_overall.impact)
+ggplot(df_plot, aes(x = reorder(state_name, -pct_avoid_contact_overall.impact),
+                    y = pct_avoid_contact_overall.impact,
+                    color=cluster)) + 
+  geom_errorbar(aes(ymin = pct_avoid_contact_overall.impact-(pct_avoid_contact_overall.impact.se*1.96),
+                    ymax = pct_avoid_contact_overall.impact+(pct_avoid_contact_overall.impact.se*1.96)),
+                width=0.5) + 
+  scale_color_manual(labels = c("Late Peak", "Early Peak"), values=c("cornflowerblue", "brown2")) +
+  geom_point(data=df_plot, mapping=aes(x=state_name, y=pct_avoid_contact_overall.impact,
+                                       color=cluster), size=2) +
+  labs(x = "",
        y = "Avoiding Contact  →  CLI in Community") + 
-  xlim(-1, 1) +
-  ylim(-2.5, 2.5) +
-  theme(panel.background = element_rect(fill = "white", colour = "grey50"),
-        axis.title=element_text(size=24),
+  geom_hline(aes(yintercept=0), 
+             linetype="dashed", color = "gray40") +
+  coord_flip() + theme_minimal() +
+  theme(axis.title=element_text(size=24),
         legend.text=element_text(size=16),
-        legend.position = c(0.9, 0.1),
+        # legend.position = c(0.9, 0.1),
         legend.title=element_text(size=16),
-        text = element_text(size=20))
+        text = element_text(size=20),
+        axis.text.y = element_text(face = ifelse(df_plot$state_name %in% c("Texas", "Minnesota"),
+                                                 "bold", "plain"),
+                                   size =ifelse(df_plot$state_name %in% c("Texas", "Minnesota"),
+                                                16, 12)))
 
-# Plot CLUSTER 2
-df_plot.2 <- df_plot %>% filter(Cluster==2)
-ggplot(df_plot.2,
-       aes(x = StringencyIndex.impact, y = pct_avoid_contact_overall.impact,
-           color=Governor)) + scale_color_manual(values=c("#0015BC", "#E9141D")) +
-  geom_point(size=7, alpha=0.75) + 
-  geom_text_repel(aes(label = toupper(state_code)), size = 5, show.legend = FALSE) + 
-  labs(x = "Stringency Index  →  CLI in Community",
-       y = "Avoiding Contact  →  CLI in Community") + 
-  xlim(-1, 1) +
-  ylim(-2.5, 2.5) +
-  theme(panel.background = element_rect(fill = "white", colour = "grey50"),
-        axis.title=element_text(size=24),
-        legend.text=element_text(size=16),
-        legend.position = c(0.9, 0.1),
-        legend.title=element_text(size=16),
-        text = element_text(size=20))
-# Means
-means_by_groups <- df_plot %>% group_by(Governor, Cluster) %>%
-  summarise(mean_StringencyIndex=mean(StringencyIndex.impact),
-            mean_pct_avoid_contact=mean(pct_avoid_contact_overall.impact))
-means_by_groups
-
-# t-test for the diffence in means between democrats and republicans from the cluster №1
-dem_c1 <- df_plot %>%
-  filter(party=="democrat", cluster=="1") %>%
-         dplyr::select(pct_avoid_contact_overall.impact)
-rep_c1 <- df_plot %>%
-  filter(party=="republican", cluster=="1") %>%
-  dplyr::select(pct_avoid_contact_overall.impact)
-t.test(dem_c1, rep_c1)
+### --- PLOT 6. Heatmap with different lags
+pheatmap(lags_coef, cluster_rows=F, cluster_cols=F, angle_col = "0",
+         color = colorRampPalette(c("brown3", "white", "forestgreen"))(100),
+         border_color="white",
+         display_numbers=T, legend=F, fontsize = 14,
+         cellwidth=35, cellheight=50)
 

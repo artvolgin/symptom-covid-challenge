@@ -100,10 +100,9 @@ df_cases <- do.call(rbind, list_cases)
 df_state <- df_state %>%
   left_join(df_cases, by=c("state_code"="state_code", "date"="date"))
 
-
 # ------------ Number of deaths per population
 # Load the number of deaths per population
-df_deaths <- covidcast_signal("jhu-csse", "deaths_7dav_incidence_prop",
+df_deaths <- covidcast_signal("jhu-csse", "deaths_7dav_incidence_prop", 
                               min(df_state$date),
                               max(df_state$date),
                               geo_type = "state")
@@ -112,9 +111,114 @@ df_deaths <- df_deaths %>%
   rename("deaths_prop"="value", "state_code"="geo_value", "date"="time_value") %>%
   dplyr::select("state_code", "date", "deaths_prop")
 df_deaths$date <- as.Date(df_deaths$date)
+
+# Smooth the COVID deaths
+list_deaths <- list()
+i <- 1
+for (st_code in unique(df_deaths$state_code)){
+  
+  # Select the country of interest
+  df_deaths_selected <- df_deaths %>% filter(state_code==st_code)
+  # Smoothing
+  df_deaths_selected <- df_deaths_selected[order(df_deaths_selected$date),]
+  
+  # First smoothing
+  df_deaths_selected$deaths_prop <- rollapply(df_deaths_selected$deaths_prop,
+                                            width=7, FUN=function(x) mean(x, na.rm=TRUE),
+                                            by=1, by.column=F, partial=F, fill=NA, align="right")
+  
+  # Save smoothed subdataset to list
+  list_deaths[[i]] <- df_deaths_selected
+  i <- i + 1
+  print(i)
+  
+}
+df_deaths <- do.call(rbind, list_deaths)
+
 # Append additional data to the main database
 df_state <- df_state %>%
   left_join(df_deaths, by=c("state_code"="state_code", "date"="date"))
+
+# ------------ Percentage of COVID-related doctor’s visits
+
+# Load the percentage of COVID-related doctor’s visits
+df_doctors <- covidcast_signal("doctor-visits", "smoothed_adj_cli",
+                               min(df_state$date),
+                               max(df_state$date),
+                               geo_type = "state")
+df_doctors <- df_doctors %>% 
+  data.frame() %>%
+  rename("doctor_visits_prop"="value", "state_code"="geo_value", "date"="time_value") %>%
+  dplyr::select("state_code", "date", "doctor_visits_prop")
+df_doctors$date <- as.Date(df_doctors$date)
+
+# Smooth the Doctors visists
+list_doctors <- list()
+i <- 1
+for (st_code in unique(df_doctors$state_code)){
+  
+  # Select the country of interest
+  df_doctors_selected <- df_doctors %>% filter(state_code==st_code)
+  # Smoothing
+  df_doctors_selected <- df_doctors_selected[order(df_doctors_selected$date),]
+  
+  # First smoothing
+  df_doctors_selected$doctor_visits_prop <- rollapply(df_doctors_selected$doctor_visits_prop,
+                                                      width=7, FUN=function(x) mean(x, na.rm=TRUE),
+                                                      by=1, by.column=F, partial=F, fill=NA, align="right")
+
+  # Save smoothed subdataset to list
+  list_doctors[[i]] <- df_doctors_selected
+  i <- i + 1
+  print(i)
+  
+}
+df_doctors <- do.call(rbind, list_doctors)
+# Append additional data to the main database
+df_state <- df_state %>%
+  left_join(df_doctors, by=c("state_code"="state_code", "date"="date"))
+
+
+# ------------ Percentage of new hospital admissions with a COVID-associated diagnosis
+# Load the percentage of new hospital admissions with a COVID-associated diagnosis
+df_hospital_admissions <- covidcast_signal("hospital-admissions", "smoothed_adj_covid19",
+                                           min(df_state$date),
+                                           max(df_state$date),
+                                           geo_type = "state")
+df_hospital_admissions <- df_hospital_admissions %>% 
+  data.frame() %>%
+  rename("hospital_admissions_prop"="value", "state_code"="geo_value", "date"="time_value") %>%
+  dplyr::select("state_code", "date", "hospital_admissions_prop")
+df_hospital_admissions$date <- as.Date(df_hospital_admissions$date)
+
+# Smooth the COVID deaths
+list_hospital_admissions <- list()
+i <- 1
+for (st_code in unique(df_hospital_admissions$state_code)){
+  
+  # Select the country of interest
+  df_hospital_admissions_selected <- df_hospital_admissions %>% filter(state_code==st_code)
+  # Smoothing
+  df_hospital_admissions_selected <- df_hospital_admissions_selected[order(df_hospital_admissions_selected$date),]
+  
+  # First smoothing
+  df_hospital_admissions_selected$hospital_admissions_prop <- rollapply(df_hospital_admissions_selected$hospital_admissions_prop,
+                                             width=7, FUN=function(x) mean(x, na.rm=TRUE),
+                                             by=1, by.column=F, partial=F, fill=NA, align="right")
+  
+  # Save smoothed subdataset to list
+  list_hospital_admissions[[i]] <- df_hospital_admissions_selected
+  i <- i + 1
+  print(i)
+  
+}
+df_hospital_admissions <- do.call(rbind, list_hospital_admissions)
+
+# Append additional data to the main database
+df_state <- df_state %>%
+  left_join(df_hospital_admissions, by=c("state_code"="state_code", "date"="date"))
+
+
 
 # ------------ Additional Smoothing on the survey data and COVID-cases
 
@@ -191,6 +295,27 @@ for(j in 1:length(state_codes)){
   print(j)
 }
 df_state <- do.call(rbind, list_states)
+
+
+# ------------ Filtering states
+
+# Load the number of cases per population
+df_total_cases <- covidcast_signal("jhu-csse", "confirmed_cumulative_num",
+                             max(df_state$date),
+                             max(df_state$date),
+                             geo_type = "state")
+df_total_cases <- df_total_cases %>%
+  data.frame() %>%
+  rename("total_cases"="value", "state_code"="geo_value") %>%
+  dplyr::select("state_code", "total_cases")
+# Select states with more than 20,000 cases
+df_total_cases <- df_total_cases %>% filter(total_cases > 20000)
+df_state <- df_state %>% filter(state_code %in% df_total_cases$state_code)
+
+# Remove states with down trend in the number of new cases
+down_trends_states <- c("ri", "ny", "nj", "nh", "me", "ma", "dc", "ct")
+df_state <- df_state %>% filter(!(state_code %in% down_trends_states))
+print(length(unique(df_state$state_code)))
 
 
 # ------------ Time-series Clustering

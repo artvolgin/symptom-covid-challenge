@@ -30,7 +30,6 @@ setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
 
 # Load data by countries
 umd_files <- list.files()
-# umd_files_country <- umd_files[grepl("country", umd_files) & !grepl("smooth", umd_files)]
 umd_files_country <- umd_files[grepl("country", umd_files) & grepl("smooth", umd_files)]
 df_country <- bind_rows(import(umd_files_country[1]),
                         import(umd_files_country[2]),
@@ -157,16 +156,9 @@ for (country_key in unique(df_google$key)){
   df_google_selected <- df_google %>% filter(key==country_key)
   # Smoothing
   df_google_selected <- df_google_selected[order(df_google_selected$date),]
-  # df_google_selected.7 <- df_google_selected[7:nrow(df_google_selected),]
-  # covid_columns <- c("new_confirmed", "new_deceased", "new_recovered", "new_tested",
-  #                    "total_confirmed", "total_deceased", "total_recovered", "total_tested")
-  
-  covid_columns <- c("new_confirmed", "new_deceased", "new_recovered", "new_tested")
-  
-  # for (colname in covid_columns){
-  #   df_google_selected.7[colname] <- as.numeric(rollmean(df_google_selected[colname], 7))
-  # }
-  
+  covid_columns <- c("new_confirmed", "new_deceased", "new_recovered", "new_tested",
+                     "new_hospitalized", "new_intensive_care")
+
   for (colname in covid_columns){
         
        # First smoothing
@@ -215,7 +207,9 @@ df_country <- df_country %>%
   mutate(new_confirmed_prop=new_confirmed/population,
          new_deceased_prop=new_deceased/population,
          new_recovered_prop=new_recovered/population,
-         new_tested_prop=new_tested/population)
+         new_tested_prop=new_tested/population,
+         new_hospitalized_prop=new_hospitalized/population,
+         new_intensive_care_prop=new_intensive_care/population)
 
 # ------------ Save the final dataset
 setwd(paste0("C:/Users/", Sys.getenv("USERNAME"),
