@@ -10,6 +10,7 @@ Prepared by Ekaterina Melianova and Artem Volgin.
 * `scc-mlvar.R-us` - The estimation of the mlVAR model and visualization of the obtained coefficients for the US.
 * `scc-mlvar.R-world` - The estimation of the mlVAR model and visualization of the obtained coefficients for the World.
 * `scc-eda-us.R` - Time series plots for the EDA in the US part.
+* `scc-presentation.pdf` - Presentation for the Showcase event
 
 ## Main Data Sources
 * `overall-state-smoothed.csv` - Data from the CMU US Survey. Link: https://cmu.app.box.com/s/ymnmu3i125go4aue0qxosi3rbcae20bj
